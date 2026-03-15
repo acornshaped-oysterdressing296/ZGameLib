@@ -34,7 +34,6 @@ interface GameStore {
   setFilter: <K extends keyof Filters>(key: K, value: Filters[K]) => void;
   resetFilters: () => void;
 
-  // Derived
   filteredGames: () => Game[];
 }
 
@@ -77,40 +76,33 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { games, search, sortKey, sortAsc, filters } = get();
     let result = [...games];
 
-    // Search
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((g) => g.name.toLowerCase().includes(q));
     }
 
-    // Platform filter
     if (filters.platform !== "all") {
       result = result.filter((g) => g.platform === filters.platform);
     }
 
-    // Status filter
     if (filters.status !== "all") {
       result = result.filter((g) => g.status === filters.status);
     }
 
-    // Favorites
     if (filters.favoritesOnly) {
       result = result.filter((g) => g.is_favorite);
     }
 
-    // Min rating
     if (filters.minRating > 0) {
       result = result.filter((g) => g.rating !== null && g.rating >= filters.minRating);
     }
 
-    // Tags
     if (filters.tags.length > 0) {
       result = result.filter((g) =>
         filters.tags.every((t) => g.tags.includes(t))
       );
     }
 
-    // Sort
     result.sort((a, b) => {
       let av: number | string | null = null;
       let bv: number | string | null = null;

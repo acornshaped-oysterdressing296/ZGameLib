@@ -47,7 +47,6 @@ export default function GameGrid() {
   if (viewMode === "list") {
     return (
       <div className="flex flex-col gap-0.5 p-4 page-enter">
-        {/* Header */}
         <div className="flex items-center gap-4 px-4 py-2.5 text-[10px] text-slate-700 font-semibold uppercase tracking-[0.15em]"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
           <div className="w-10 shrink-0" />

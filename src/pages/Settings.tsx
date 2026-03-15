@@ -72,7 +72,6 @@ export default function Settings() {
   const setCustomStatuses = useUIStore((s) => s.setCustomStatuses);
   const queryClient = useQueryClient();
 
-  // Seed from cache immediately so remounts never flash the spinner
   const [settings, setSettings] = useState<AppSettings | null>(
     () => queryClient.getQueryData<AppSettings>(["settings"]) ?? null
   );
@@ -87,7 +86,6 @@ export default function Settings() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Sync query data into local draft (only on first arrival)
   useEffect(() => {
     if (querySettings && !settings) {
       setSettings(querySettings);
@@ -122,14 +120,14 @@ export default function Settings() {
   const handleExport = async () => {
     try {
       const json = await api.exportLibrary();
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `zgamelib-export-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      addToast("Library exported");
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        defaultPath: `zgamelib-export-${new Date().toISOString().slice(0, 10)}.json`,
+      });
+      if (!path) return;
+      await api.saveFile(path, json);
+      addToast("Library exported", "success");
     } catch (e) {
       addToast(String(e), "error");
     }
@@ -178,7 +176,6 @@ export default function Settings() {
     <div className="h-full overflow-y-auto">
       <div className="p-6 max-w-xl mx-auto">
 
-        {/* Page header */}
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -202,7 +199,6 @@ export default function Settings() {
 
         <div className="flex flex-col gap-4">
 
-          {/* ── General ──────────────────────────────── */}
           <Section title="General" icon={<SparkleIcon size={13} />} delay={0.04}>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -239,7 +235,6 @@ export default function Settings() {
             </div>
           </Section>
 
-          {/* ── Appearance ───────────────────────────── */}
           <Section title="Appearance" icon={<SparkleIcon size={13} />} delay={0.06}>
             <div className="flex flex-col gap-5">
               <div>
@@ -278,7 +273,6 @@ export default function Settings() {
             </div>
           </Section>
 
-          {/* ── Behavior ─────────────────────────────── */}
           <Section title="Behavior" icon={<SettingsIcon size={13} />} delay={0.1}>
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
@@ -304,7 +298,6 @@ export default function Settings() {
             </div>
           </Section>
 
-          {/* ── System ───────────────────────────────── */}
           <Section title="System" icon={<SettingsIcon size={13} />} delay={0.12}>
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
@@ -340,7 +333,6 @@ export default function Settings() {
             </div>
           </Section>
 
-          {/* ── Platform Paths ───────────────────────── */}
           <Section title="Platform Paths" icon={<GamepadIcon size={13} />} delay={0.14}>
             <div className="flex flex-col gap-3">
               <div>
@@ -368,7 +360,6 @@ export default function Settings() {
             </div>
           </Section>
 
-          {/* ── Game Statuses ────────────────────────── */}
           <Section title="Game Statuses" icon={<span className="w-3 h-3 rounded-full bg-accent-500 inline-block" />} delay={0.12}>
             <p className="text-[11px] text-slate-600 mb-4 leading-relaxed">
               Drag rows to reorder. Click a label to rename. These appear throughout the app to track progress.
@@ -392,7 +383,6 @@ export default function Settings() {
                     }}
                     whileDrag={{ scale: 1.02, boxShadow: "0 8px 30px rgba(0,0,0,0.4)" }}
                   >
-                    {/* Drag dots */}
                     <div className="text-slate-700 shrink-0">
                       <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
                         <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
@@ -401,14 +391,12 @@ export default function Settings() {
                       </svg>
                     </div>
 
-                    {/* Color dot */}
                     <button
                       onClick={() => setEditingStatus(editingStatus === i ? null : i)}
                       className="w-3.5 h-3.5 rounded-full border border-white/10 shrink-0 transition-transform hover:scale-125"
                       style={{ backgroundColor: status.color }}
                     />
 
-                    {/* Label */}
                     {editingStatus === i ? (
                       <input
                         autoFocus
@@ -427,7 +415,6 @@ export default function Settings() {
                       </span>
                     )}
 
-                    {/* Color swatches when editing */}
                     {editingStatus === i && (
                       <div className="flex gap-1 shrink-0">
                         {COLOR_PRESETS.map((c) => (
@@ -444,7 +431,6 @@ export default function Settings() {
                       </div>
                     )}
 
-                    {/* Delete */}
                     <motion.button
                       whileTap={{ scale: 0.85 }}
                       onClick={() => removeStatus(status.key)}
@@ -457,7 +443,6 @@ export default function Settings() {
               </AnimatePresence>
             </Reorder.Group>
 
-            {/* Add status form */}
             <AnimatePresence>
               {showAddStatus && (
                 <motion.div
@@ -532,7 +517,6 @@ export default function Settings() {
             </motion.button>
           </Section>
 
-          {/* ── Save ─────────────────────────────────── */}
           <motion.button
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -548,7 +532,6 @@ export default function Settings() {
             {saveMutation.isPending ? "Saving…" : "Save Settings"}
           </motion.button>
 
-          {/* ── Data & About row ─────────────────────── */}
           <div className="grid grid-cols-2 gap-4">
             <Section title="Data" icon={<DownloadIcon size={13} />} delay={0.2}>
               <p className="text-[11px] text-slate-600 mb-4 leading-relaxed">

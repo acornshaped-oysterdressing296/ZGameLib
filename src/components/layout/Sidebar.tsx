@@ -60,7 +60,7 @@ export default function Sidebar() {
         {isActive && (
           <motion.div
             layoutId="nav-dot"
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-accent-500"
+            className="absolute -left-3 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-accent-500"
             transition={{ type: "spring", stiffness: 500, damping: 35 }}
           />
         )}
@@ -70,7 +70,6 @@ export default function Sidebar() {
 
   return (
     <aside className="w-60 shrink-0 flex flex-col h-full glass-sidebar py-5 px-3 gap-1 overflow-y-auto overflow-x-hidden">
-      {/* Logo */}
       <div className="flex items-center gap-3 px-3 mb-6">
         <motion.div
           whileHover={{ rotate: 8, scale: 1.05 }}
@@ -88,7 +87,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Navigation */}
       <div className="flex flex-col gap-0.5">
         {navItem("/", <LibraryIcon size={16} />, "Library")}
         {navItem("/favorites", <HeartIcon size={16} />, "Favorites")}
@@ -98,7 +96,6 @@ export default function Sidebar() {
         {navItem("/settings", <SettingsIcon size={16} />, "Settings")}
       </div>
 
-      {/* Platforms */}
       <div className="mt-6 mb-1">
         <p className="text-[10px] font-semibold text-slate-700 uppercase tracking-[0.15em] px-3 mb-2 flex items-center gap-1.5">
           <span className="w-3 h-px bg-slate-800" />
@@ -106,7 +103,6 @@ export default function Sidebar() {
           <span className="flex-1 h-px bg-slate-800" />
         </p>
         <div className="flex flex-col gap-0.5">
-          {/* All platforms */}
           <button
             onClick={() => {
               setFilter("platform", "all");
@@ -155,7 +151,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Status Filter — dynamic from custom statuses */}
       <div className="mt-3 mb-1">
         <p className="text-[10px] font-semibold text-slate-700 uppercase tracking-[0.15em] px-3 mb-2 flex items-center gap-1.5">
           <span className="w-3 h-px bg-slate-800" />
@@ -190,10 +185,8 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Quick Stats */}
       <div className="glass rounded-xl p-3 mb-3 mx-1">
         <div className="flex items-center gap-2 mb-2">
           <SparkleIcon size={12} className="text-accent-400" />
@@ -211,7 +204,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex flex-col gap-2 px-1">
         <motion.button
           whileHover={{ scale: 1.02 }}

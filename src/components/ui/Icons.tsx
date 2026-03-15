@@ -1,6 +1,3 @@
-// Custom SVG icons — no unicode emojis, no emoji fonts
-// Every icon is a hand-crafted SVG for a consistent, premium look
-
 interface IconProps {
   size?: number;
   className?: string;

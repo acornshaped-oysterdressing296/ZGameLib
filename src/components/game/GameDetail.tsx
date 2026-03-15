@@ -39,7 +39,6 @@ export default function GameDetail() {
   const [screenshots, setScreenshots] = useState<string[] | null>(null);
   const [loadingShots, setLoadingShots] = useState(false);
 
-  // useCover needs a game object — use a dummy if null (hook rules: can't call conditionally)
   const dummyGame = { id: "", name: "", platform: "custom" as const, cover_path: null, exe_path: null, install_dir: null, description: null, rating: null, status: "none" as const, is_favorite: false, playtime_mins: 0, last_played: null, date_added: "", steam_app_id: null, epic_app_name: null, tags: [], sort_order: 0 };
   const coverUrl = useCover(game ?? dummyGame);
 
@@ -54,7 +53,6 @@ export default function GameDetail() {
     if (typeof selected === "string") {
       try {
         const newPath = await api.setGameCover(game.id, selected);
-        // Clear old cached cover, read the new one, and refresh store
         if (game.cover_path) clearCoverCache(game.cover_path);
         const dataUri = await api.readImageBase64(newPath);
         setCoverCache(newPath, dataUri);
@@ -150,7 +148,6 @@ export default function GameDetail() {
               boxShadow: "-20px 0 60px rgba(0,0,0,0.5), 0 0 40px rgb(var(--accent-500) /0.05)",
             }}
           >
-            {/* Cover hero — click to change */}
             <div className="relative h-60 shrink-0 overflow-hidden group/cover cursor-pointer" onClick={handleChangeCover}>
               <motion.img
                 initial={{ scale: 1.1 }}
@@ -164,7 +161,6 @@ export default function GameDetail() {
               <div className="absolute inset-0" style={{
                 background: "linear-gradient(to bottom, rgba(10,8,16,0.2) 0%, rgba(10,8,16,0.5) 50%, rgba(10,8,16,1) 100%)"
               }} />
-              {/* Change cover overlay */}
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/cover:opacity-100 transition-opacity duration-300 z-10"
                 style={{ background: "rgba(0,0,0,0.5)" }}
               >
@@ -195,7 +191,6 @@ export default function GameDetail() {
               </div>
             </div>
 
-            {/* Tab bar */}
             <div
               className="flex shrink-0 px-6"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
@@ -222,7 +217,6 @@ export default function GameDetail() {
               ))}
             </div>
 
-            {/* Screenshots panel */}
             {activeTab === "screenshots" && (
               <div className="flex-1 overflow-y-auto p-4">
                 {loadingShots && (
@@ -247,10 +241,8 @@ export default function GameDetail() {
               </div>
             )}
 
-            {/* Scrollable content */}
             {activeTab === "info" && (
             <div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
-              {/* Title */}
               <div className="flex items-start gap-3">
                 {editingName ? (
                   <div className="flex gap-2 flex-1">
@@ -286,7 +278,6 @@ export default function GameDetail() {
                 </motion.button>
               </div>
 
-              {/* Action buttons */}
               <div className="flex gap-2">
                 <motion.button
                   whileHover={{ scale: 1.02 }}
@@ -315,7 +306,6 @@ export default function GameDetail() {
                 </motion.button>
               </div>
 
-              {/* Stats row */}
               <div className="grid grid-cols-3 gap-3">
                 {[
                   { icon: <ClockIcon size={13} className="text-accent-400" />, label: "Playtime", value: formatPlaytime(game.playtime_mins) },
@@ -332,13 +322,11 @@ export default function GameDetail() {
                 ))}
               </div>
 
-              {/* Rating */}
               <div>
                 <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-2.5">Your Rating</p>
                 <StarRating value={game.rating} onChange={(v) => update({ id: game.id, rating: v })} size="md" />
               </div>
 
-              {/* Status */}
               <div>
                 <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-2.5">Status</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -373,7 +361,6 @@ export default function GameDetail() {
                 </div>
               </div>
 
-              {/* Tags */}
               <div>
                 <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-2.5 flex items-center gap-1.5">
                   <TagIcon size={11} className="text-slate-600" /> Tags
@@ -405,7 +392,6 @@ export default function GameDetail() {
                 />
               </div>
 
-              {/* Description */}
               <div>
                 <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-2.5">Description</p>
                 {editingDesc ? (
@@ -436,10 +422,8 @@ export default function GameDetail() {
                 )}
               </div>
 
-              {/* Notes */}
               <GameNotes gameId={game.id} />
 
-              {/* Metadata */}
               {(game.steam_app_id || game.epic_app_name || game.install_dir) && (
                 <div className="glass rounded-xl p-4 space-y-1.5">
                   <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-2">Info</p>
@@ -509,7 +493,6 @@ export default function GameDetail() {
 
 function useScreenshotUrl(path: string) {
   const [url, setUrl] = useState<string | null>(null);
-  // Load on first render
   if (url === null) {
     api.readImageBase64(path).then(setUrl).catch(() => setUrl(""));
   }

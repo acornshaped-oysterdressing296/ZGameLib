@@ -68,7 +68,6 @@ function GameCard({ game }: { game: Game }) {
       className="group relative cursor-pointer rounded-2xl overflow-hidden card-lift card-shine border border-white/[0.04] hover:border-accent-500/30"
       style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
     >
-      {/* Cover */}
       <div className="relative aspect-[3/4] overflow-hidden bg-bg-elevated">
         <img
           src={coverUrl && !imgFailed ? coverUrl : COVER_PLACEHOLDER}
@@ -81,11 +80,9 @@ function GameCard({ game }: { game: Game }) {
           onError={() => setImgFailed(true)}
         />
 
-        {/* Multi-gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90" />
         <div className="absolute inset-0 bg-gradient-to-br from-accent-900/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-        {/* Quick actions - slide in from right */}
         <div className="absolute top-2.5 right-2.5 flex flex-col gap-1.5 translate-x-12 group-hover:translate-x-0 transition-transform duration-300 ease-out">
           <motion.button
             whileTap={{ scale: 0.85 }}
@@ -113,23 +110,19 @@ function GameCard({ game }: { game: Game }) {
           </motion.button>
         </div>
 
-        {/* Platform badge */}
         <div className="absolute top-2.5 left-2.5">
           <Badge className={PLATFORM_COLORS[game.platform]}>
             {game.platform === "steam" ? "Steam" : game.platform === "epic" ? "Epic" : game.platform === "gog" ? "GOG" : "Custom"}
           </Badge>
         </div>
 
-        {/* Favorite indicator (always visible when not hovered) */}
         {game.is_favorite && (
           <div className="absolute top-2.5 right-2.5 group-hover:opacity-0 transition-opacity duration-200">
             <HeartIcon size={14} filled className="text-pink-400 drop-shadow-lg" />
           </div>
         )}
 
-        {/* Bottom content */}
         <div className="absolute bottom-0 left-0 right-0 p-3">
-          {/* Rating + high rated flame */}
           {game.rating !== null && (
             <div className="flex items-center gap-1.5 mb-1">
               {isHighRated && <FireIcon size={12} className="text-amber-400" />}
@@ -161,7 +154,6 @@ function GameCard({ game }: { game: Game }) {
               )}
             </div>
 
-            {/* Settings / Detail button */}
             <motion.button
               whileTap={{ scale: 0.85 }}
               onClick={(e) => { e.stopPropagation(); openDetail(); }}

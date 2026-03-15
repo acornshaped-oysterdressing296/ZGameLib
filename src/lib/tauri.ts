@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Game, Note, CreateGamePayload, UpdateGamePayload, ScanResult, AppSettings, ImportResult, CoverCandidate } from "./types";
 
 export const api = {
-  // Games
   getAllGames: () => invoke<Game[]>("get_all_games"),
   getGame: (id: string) => invoke<Game | null>("get_game", { id }),
   createGame: (payload: CreateGamePayload) => invoke<Game>("create_game", { payload }),
@@ -10,13 +9,11 @@ export const api = {
   deleteGame: (id: string) => invoke<void>("delete_game", { id }),
   toggleFavorite: (id: string) => invoke<boolean>("toggle_favorite", { id }),
 
-  // Notes
   getNotes: (gameId: string) => invoke<Note[]>("get_notes", { gameId }),
   createNote: (gameId: string, content: string) => invoke<Note>("create_note", { gameId, content }),
   updateNote: (id: string, content: string) => invoke<Note>("update_note", { id, content }),
   deleteNote: (id: string) => invoke<void>("delete_note", { id }),
 
-  // Scanner
   scanSteam: () => invoke<ScanResult>("scan_steam_games"),
   scanEpic: () => invoke<ScanResult>("scan_epic_games"),
   scanGog: () => invoke<ScanResult>("scan_gog_games"),
@@ -30,15 +27,14 @@ export const api = {
   searchGameCovers: (query: string) => invoke<CoverCandidate[]>("search_game_covers", { query }),
   getGameScreenshots: (steamAppId: string) => invoke<string[]>("get_game_screenshots", { steamAppId }),
 
-  // Launcher
   launchGame: (id: string) => invoke<void>("launch_game", { id }),
   launchSteamGame: (appId: string, gameId: string) => invoke<void>("launch_steam_game", { appId, gameId }),
   launchEpicGame: (appName: string, gameId: string) => invoke<void>("launch_epic_game", { appName, gameId }),
   openGameFolder: (id: string) => invoke<void>("open_game_folder", { id }),
 
-  // Settings
   getSettings: () => invoke<AppSettings>("get_settings"),
   saveSettings: (settings: AppSettings) => invoke<void>("save_settings", { settings }),
   exportLibrary: () => invoke<string>("export_library"),
   importLibrary: (path: string) => invoke<ImportResult>("import_library", { path }),
+  saveFile: (path: string, content: string) => invoke<void>("save_file", { path, content }),
 };

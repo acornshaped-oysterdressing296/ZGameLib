@@ -49,7 +49,6 @@ export default function Topbar() {
 
   return (
     <div className="flex items-center gap-4 px-6 py-4 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-      {/* Search */}
       <div className="relative flex-1 max-w-lg group">
         <SearchIcon
           size={15}
@@ -74,7 +73,6 @@ export default function Topbar() {
         )}
       </div>
 
-      {/* Game count pill */}
       <div className="glass rounded-full px-3 py-1.5 flex items-center gap-1.5 shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-accent-500" />
         <span className="text-[11px] text-slate-400 tabular-nums font-medium">
@@ -84,7 +82,6 @@ export default function Topbar() {
         </span>
       </div>
 
-      {/* Sort */}
       <div className="flex items-center gap-1.5">
         <select
           value={sortKey}
@@ -108,7 +105,6 @@ export default function Topbar() {
         </motion.button>
       </div>
 
-      {/* Log Panel Toggle */}
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
@@ -122,7 +118,6 @@ export default function Topbar() {
         )}
       </motion.button>
 
-      {/* View Toggle */}
       <div className="flex items-center glass rounded-xl p-1 gap-0.5">
         {[
           { mode: "grid" as const, Icon: GridIcon },
