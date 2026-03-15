@@ -1,0 +1,44 @@
+import { invoke } from "@tauri-apps/api/core";
+import type { Game, Note, CreateGamePayload, UpdateGamePayload, ScanResult, AppSettings, ImportResult, CoverCandidate } from "./types";
+
+export const api = {
+  // Games
+  getAllGames: () => invoke<Game[]>("get_all_games"),
+  getGame: (id: string) => invoke<Game | null>("get_game", { id }),
+  createGame: (payload: CreateGamePayload) => invoke<Game>("create_game", { payload }),
+  updateGame: (payload: UpdateGamePayload) => invoke<Game>("update_game", { payload }),
+  deleteGame: (id: string) => invoke<void>("delete_game", { id }),
+  toggleFavorite: (id: string) => invoke<boolean>("toggle_favorite", { id }),
+
+  // Notes
+  getNotes: (gameId: string) => invoke<Note[]>("get_notes", { gameId }),
+  createNote: (gameId: string, content: string) => invoke<Note>("create_note", { gameId, content }),
+  updateNote: (id: string, content: string) => invoke<Note>("update_note", { id, content }),
+  deleteNote: (id: string) => invoke<void>("delete_note", { id }),
+
+  // Scanner
+  scanSteam: () => invoke<ScanResult>("scan_steam_games"),
+  scanEpic: () => invoke<ScanResult>("scan_epic_games"),
+  scanGog: () => invoke<ScanResult>("scan_gog_games"),
+  scanAll: () => invoke<ScanResult>("scan_all_games"),
+  scanFolder: (folderPath: string) => invoke<ScanResult>("scan_folder_for_games", { folderPath }),
+  setGameCover: (gameId: string, imagePath: string) => invoke<string>("set_game_cover", { gameId, imagePath }),
+  extractExeIcon: (exePath: string) => invoke<string>("extract_exe_icon", { exePath }),
+  findCoverInDir: (dirPath: string) => invoke<string>("find_cover_in_dir", { dirPath }),
+  readImageBase64: (filePath: string) => invoke<string>("read_image_base64", { filePath }),
+  fetchUrlAsBase64: (url: string) => invoke<string>("fetch_url_as_base64", { url }),
+  searchGameCovers: (query: string) => invoke<CoverCandidate[]>("search_game_covers", { query }),
+  getGameScreenshots: (steamAppId: string) => invoke<string[]>("get_game_screenshots", { steamAppId }),
+
+  // Launcher
+  launchGame: (id: string) => invoke<void>("launch_game", { id }),
+  launchSteamGame: (appId: string, gameId: string) => invoke<void>("launch_steam_game", { appId, gameId }),
+  launchEpicGame: (appName: string, gameId: string) => invoke<void>("launch_epic_game", { appName, gameId }),
+  openGameFolder: (id: string) => invoke<void>("open_game_folder", { id }),
+
+  // Settings
+  getSettings: () => invoke<AppSettings>("get_settings"),
+  saveSettings: (settings: AppSettings) => invoke<void>("save_settings", { settings }),
+  exportLibrary: () => invoke<string>("export_library"),
+  importLibrary: (path: string) => invoke<ImportResult>("import_library", { path }),
+};
