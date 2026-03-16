@@ -4,7 +4,7 @@ mod commands;
 
 use db::{DbState, init_db, queries};
 use std::sync::Mutex;
-use commands::{games, scanner, launcher, settings};
+use commands::{games, scanner, launcher, settings, modloader};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -126,6 +126,14 @@ pub fn run() {
             settings::save_file,
             settings::check_for_update,
             settings::open_url,
+            modloader::check_modloader_status,
+            modloader::install_bepinex,
+            modloader::uninstall_bepinex,
+            modloader::install_melonloader,
+            modloader::uninstall_melonloader,
+            modloader::open_mods_folder,
+            modloader::install_mod,
+            modloader::delete_mod,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

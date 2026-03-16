@@ -1,6 +1,6 @@
 [package]
 name = "zgamelib"
-version = "0.3.0"
+version = "0.4.0"
 description = "ZGameLib - Personal Game Library"
 authors = ["TheHolyOneZ"]
 license = "MIT"
@@ -31,6 +31,7 @@ anyhow = "1"
 dirs = "5"
 open = "5"
 ureq = { version = "2", features = ["tls"] }
+zip = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
