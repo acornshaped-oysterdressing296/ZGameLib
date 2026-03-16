@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { StatusConfig } from "@/lib/types";
+import type { Update } from "@tauri-apps/plugin-updater";
 
 interface Toast {
   id: string;
@@ -48,6 +49,9 @@ interface UIStore {
   addLog: (level: LogEntry["level"], message: string) => void;
   clearLogs: () => void;
   setLogPanelOpen: (v: boolean) => void;
+
+  pendingUpdate: Update | null;
+  setPendingUpdate: (u: Update | null) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -89,4 +93,7 @@ export const useUIStore = create<UIStore>((set) => ({
   },
   clearLogs: () => set({ logs: [] }),
   setLogPanelOpen: (v) => set({ logPanelOpen: v }),
+
+  pendingUpdate: null,
+  setPendingUpdate: (u) => set({ pendingUpdate: u }),
 }));

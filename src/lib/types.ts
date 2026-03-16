@@ -91,5 +91,12 @@ export interface CoverCandidate {
   cover_url: string;
 }
 
+export interface UpdateInfo {
+  version: string;
+  notes: string;
+  url: string;
+  published: string;
+}
+
 export type SortKey = "name" | "rating" | "last_played" | "date_added" | "playtime_mins";
 export type ViewMode = "grid" | "list";

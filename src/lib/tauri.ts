@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Game, Note, CreateGamePayload, UpdateGamePayload, ScanResult, AppSettings, ImportResult, CoverCandidate } from "./types";
+import type { Game, Note, CreateGamePayload, UpdateGamePayload, ScanResult, AppSettings, ImportResult, CoverCandidate, UpdateInfo } from "./types";
 
 export const api = {
   getAllGames: () => invoke<Game[]>("get_all_games"),
@@ -37,4 +37,6 @@ export const api = {
   exportLibrary: () => invoke<string>("export_library"),
   importLibrary: (path: string) => invoke<ImportResult>("import_library", { path }),
   saveFile: (path: string, content: string) => invoke<void>("save_file", { path, content }),
+  checkForUpdate: () => invoke<UpdateInfo>("check_for_update", { ts: Date.now() }),
+  openUrl: (url: string) => invoke<void>("open_url", { url }),
 };

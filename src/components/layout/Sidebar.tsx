@@ -60,7 +60,7 @@ export default function Sidebar() {
         {isActive && (
           <motion.div
             layoutId="nav-dot"
-            className="absolute -left-3 top-1/2 -translate-y-1/2 w-[3px] h-4 rounded-r-full bg-accent-500"
+            className="absolute -left-3 top-0 bottom-0 w-[3px] rounded-r-full bg-accent-500"
             transition={{ type: "spring", stiffness: 500, damping: 35 }}
           />
         )}

@@ -6,7 +6,7 @@ import { useUIStore } from "@/store/useUIStore";
 import type { AppSettings, StatusConfig } from "@/lib/types";
 import {
   DownloadIcon, SettingsIcon, CheckIcon, PlusIcon, TrashIcon,
-  CloseIcon, GamepadIcon, SparkleIcon
+  CloseIcon, GamepadIcon, SparkleIcon, GlobeIcon
 } from "@/components/ui/Icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
@@ -79,6 +79,7 @@ export default function Settings() {
   const [newStatusLabel, setNewStatusLabel] = useState("");
   const [newStatusColor, setNewStatusColor] = useState("#60a5fa");
   const [showAddStatus, setShowAddStatus] = useState(false);
+  const [checkStatus, setCheckStatus] = useState<"idle" | "checking" | "up-to-date" | "available">("idle");
 
   const { data: querySettings } = useQuery({
     queryKey: ["settings"],
@@ -114,6 +115,23 @@ export default function Settings() {
       addToast(`Imported ${result.added} games (${result.skipped} skipped)`, result.added > 0 ? "success" : "info");
     } catch (e) {
       addToast(String(e), "error");
+    }
+  };
+
+  const checkUpdate = async () => {
+    setCheckStatus("checking");
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (update) {
+        setCheckStatus("available");
+        useUIStore.getState().setPendingUpdate(update);
+      } else {
+        setCheckStatus("up-to-date");
+      }
+    } catch {
+      setCheckStatus("idle");
+      addToast("Could not check for updates", "error");
     }
   };
 
@@ -560,7 +578,7 @@ export default function Settings() {
             </Section>
 
             <Section title="About" icon={<GamepadIcon size={13} />} delay={0.22}>
-              <div className="flex flex-col items-center text-center gap-2.5 py-1">
+              <div className="flex flex-col items-center text-center gap-3 py-1">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center"
                   style={{ background: "linear-gradient(135deg, rgb(var(--accent-600)), rgb(var(--accent-400)))", boxShadow: "0 4px 16px rgb(var(--accent-600) / 0.35)" }}
@@ -569,20 +587,46 @@ export default function Settings() {
                 </div>
                 <div>
                   <p className="text-[13px] font-bold text-white">ZGameLib</p>
-                  <p className="text-[11px] text-slate-600">v0.1.0</p>
+                  <p className="text-[11px] text-slate-600">v0.3.0</p>
                 </div>
                 <p className="text-[11px] text-slate-500">
                   Made by{" "}
-                  <a
-                    href="https://github.com/TheHolyOneZ"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => api.openUrl("https://github.com/TheHolyOneZ")}
                     className="text-accent-400 hover:text-accent-300 transition-colors"
-                    onClick={(e) => e.stopPropagation()}
                   >
                     TheHolyOneZ
-                  </a>
+                  </button>
                 </p>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => api.openUrl("https://zsync.eu/zgamelib/")}
+                  className="btn-ghost w-full justify-center text-[12px]"
+                >
+                  <GlobeIcon size={13} />
+                  Website
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={checkUpdate}
+                  disabled={checkStatus ==="checking"}
+                  className="btn-ghost w-full justify-center text-[12px] disabled:opacity-50"
+                >
+                  {checkStatus ==="checking" ? (
+                    <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+                      <SettingsIcon size={13} />
+                    </motion.span>
+                  ) : checkStatus ==="available" ? (
+                    <span className="text-green-400">↑</span>
+                  ) : checkStatus ==="up-to-date" ? (
+                    <CheckIcon size={13} className="text-green-400" />
+                  ) : (
+                    <DownloadIcon size={13} />
+                  )}
+                  {checkStatus === "checking" ? "Checking…" : checkStatus === "available" ? "Update ready — see banner" : checkStatus === "up-to-date" ? "Up to date" : "Check for Updates"}
+                </motion.button>
               </div>
             </Section>
           </div>
