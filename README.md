@@ -1,141 +1,832 @@
-# ZGameLib
+<div align="center">
 
-**A beautiful, free, open-source personal game library for Windows.**
+<h1>
+  <img src="https://img.shields.io/badge/-ZGameLib-7c3aed?style=for-the-badge&logoColor=white" alt="ZGameLib" height="40"/>
+</h1>
 
-Track, organize, rate and launch every game you own — Steam, Epic Games, GOG and custom executables — all from one sleek app built with Tauri 2 + React.
+<p><strong>A beautiful, free, open-source personal game library for Windows.</strong><br/>
+Track, organize, rate and launch every game you own — Steam, Epic, GOG, and custom — from one sleek desktop app.</p>
 
----
+<p>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-7c3aed?style=flat-square" alt="MIT License"/></a>
+  <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows" alt="Windows"/>
+  <img src="https://img.shields.io/badge/Version-0.4.1-22c55e?style=flat-square" alt="v0.4.1"/>
+  <a href="https://tauri.app"><img src="https://img.shields.io/badge/Built%20with-Tauri%202-FFC131?style=flat-square" alt="Tauri 2"/></a>
+  <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react" alt="React 18"/>
+  <img src="https://img.shields.io/badge/Rust-backend-CE422B?style=flat-square&logo=rust" alt="Rust"/>
+</p>
 
-## Website
+<p>
+  <a href="https://zsync.eu/zgamelib/"><strong>🌐 Website</strong></a> &nbsp;·&nbsp;
+  <a href="https://zsync.eu/zgamelib/app/ZGameLib_0.4.1_x64_en-US.msi"><strong>⬇ Download MSI</strong></a> &nbsp;·&nbsp;
+  <a href="https://zsync.eu/zgamelib/app/ZGameLib_0.4.1_x64-setup.exe"><strong>⬇ Download EXE</strong></a> &nbsp;·&nbsp;
+  <a href="https://github.com/TheHolyOneZ/ZGameLib"><strong>GitHub</strong></a>
+</p>
 
-**[zsync.eu/zgamelib](https://zsync.eu/zgamelib/)** — latest downloads and the main hub for ZGameLib.
+</div>
 
 ---
 
 ## Preview
 
-> **Note:** This video was recorded on v0.3.0. The UI looks very similar but newer versions include improvements — cleaner layout, per-page search, better screenshot actions, and more.
+> Recorded on v0.3.0. Newer versions include per-page search, mod loader, cleaner layout, and more improvements.
 
-[![ZGameLib v0.3.0 Preview](https://img.youtube.com/vi/rlqUUqAPOxU/maxresdefault.jpg)](https://www.youtube.com/watch?v=rlqUUqAPOxU)
+<div align="center">
+
+[![ZGameLib Preview](https://img.youtube.com/vi/rlqUUqAPOxU/maxresdefault.jpg)](https://www.youtube.com/watch?v=rlqUUqAPOxU)
+
+</div>
 
 ---
 
 ## Download
 
-Visit **[zsync.eu/zgamelib](https://zsync.eu/zgamelib/)** for the latest installers, or grab them directly:
+| Installer | Format | Notes |
+|-----------|--------|-------|
+| [ZGameLib_0.4.1_x64_en-US.msi](https://zsync.eu/zgamelib/app/ZGameLib_0.4.1_x64_en-US.msi) | `.msi` | **Recommended** — Windows Installer |
+| [ZGameLib_0.4.1_x64-setup.exe](https://zsync.eu/zgamelib/app/ZGameLib_0.4.1_x64-setup.exe) | `.exe` | NSIS alternative installer |
 
-| Installer | Link |
-|-----------|------|
-| Windows Installer (.msi) — **Recommended** | [ZGameLib_0.4.1_x64_en-US.msi](https://zsync.eu/zgamelib/app/ZGameLib_0.4.1_x64_en-US.msi) |
-| NSIS Installer (.exe) — Alternative | [ZGameLib_0.4.1_x64-setup.exe](https://zsync.eu/zgamelib/app/ZGameLib_0.4.1_x64-setup.exe) |
+> **Windows SmartScreen:** On first launch you may see *"Windows protected your PC"* — click **More info → Run anyway**. This is expected for unsigned indie apps.
 
-> **Windows SmartScreen note:** On first launch Windows may show a "Windows protected your PC" warning because the app is unsigned. Click **"More info"** → **"Run anyway"**. This is normal for indie open-source apps.
+---
+
+## Table of Contents
+
+- [Features](#features)
+  - [Library & Scanning](#-library--scanning)
+  - [Game Launching & Playtime](#-game-launching--playtime)
+  - [Game Detail Panel](#-game-detail-panel)
+  - [Mod Loader](#-mod-loader)
+  - [Game Spin Wheel](#-game-spin-wheel)
+  - [Statistics](#-statistics)
+  - [Themes](#-themes--7-built-in)
+  - [System Integration](#-system-integration)
+  - [Data & Privacy](#-data--privacy)
+- [Keyboard Shortcuts](#keyboard-shortcuts)
+- [Tech Stack](#tech-stack)
+- [Architecture](#architecture)
+- [Database Schema](#database-schema)
+- [Scanner Details](#scanner-details)
+- [External Integrations](#external-integrations)
+- [Project Structure](#project-structure)
+- [Building from Source](#building-from-source)
+- [License](#license)
 
 ---
 
 ## Features
 
-### Library & Scanning
-- **Auto-scan** Steam, Epic Games, GOG, and custom folders in one click
-- Detects new games automatically, skips duplicates
-- **Remove Duplicates** — one-click hides duplicate entries (by name); togglable, non-destructive, resets on restart
-- **Intelligent executable detection** — prioritises name-matched launchers over shipping/UE4 binaries, minimum 500 KB threshold, extensive skip-list for crash reporters and tools
-- **Cover art**: Steam CDN (portrait), GOG API, Steam SearchApps fallback for Epic/GOG, exe icon extraction as last resort
-- Grid view (3–6 configurable columns) and dense list view
-- Sort by name, rating, playtime, last played, or date added
-- Filter by platform, custom status, and free-text search
-- **Per-page search bar** — search, sort, and view controls live inside each page (Library, Favorites, Recently Played) for a cleaner layout
+### 📚 Library & Scanning
 
-### Launching
-- **Steam** — `steam://run/{appId}` URI protocol, native Steam overlay
-- **Epic Games** — `com.epicgames.launcher://apps/{appName}?action=launch&silent=true` URI for proper EOS authentication
-- **GOG / Custom** — direct executable launch with playtime monitoring
-- Minimize ZGameLib when a game starts, auto-restore when it exits
+<table>
+<tr>
+<td width="50%" valign="top">
 
-### Game Details
-- Full detail panel (slide-in drawer)
-- Edit game name and description inline
-- **10-star rating system**
-- **Custom status labels** — drag-to-reorder, color picker, fully user-defined (Backlog, Playing, Completed, Dropped, On Hold…)
-- **Tags** — add/remove inline tags for any game
-- **Notes** — timestamped notes per game, edit and delete
-- **Screenshot gallery** — browse all Steam screenshots in-app, masonry grid, full-screen lightbox; per-screenshot actions: Copy Path, Open File, Open Folder, Export/Download
-- **Cover search** — search Steam's database by name, pick from results, applied instantly
+**Auto-scanning**
+- One-click scan for all four platforms simultaneously
+- Per-platform individual scan buttons
+- Optional **auto-scan on startup**
+- Detects new games and skips existing ones
 
-### Mod Loader
-- **BepInEx installer** — one click fetches the latest release from GitHub and extracts to the game folder
-- **MelonLoader installer** — one click downloads and runs the official silent installer
-- Mod list showing all installed `.dll` mods with file sizes
-- Add mods via file picker, remove with one click
-- Open mods folder directly in Explorer
-- Appears as a "Mods" tab in the game detail panel for any game with an install directory
+**Duplicate Management**
+- **Remove Duplicates** button collapses entries sharing the same name
+- Non-destructive — hidden, not deleted
+- Toggle show/hide hidden games instantly
+- Resets automatically on app restart
 
-### Game Spin Wheel
-- Randomizer wheel for when you can't decide what to play
-- Filter pool: all, by platform (Steam/Epic/GOG/Custom), favorites, or free search
-- Donut SVG wheel with gradient segments, per-segment colors, tick marks
+**Cover Art Resolution Chain**
+1. Steam CDN portrait (`library_600x900.jpg`)
+2. GOG product API
+3. Steam SearchApps (fallback for Epic/GOG/Custom)
+4. Exe icon extraction (last resort)
+5. Placeholder
+
+</td>
+<td width="50%" valign="top">
+
+**Views & Sorting**
+- **Grid view** — configurable 3–6 columns
+- **Dense list view** — compact rows with all info
+- Sort by: name · rating · last played · date added · playtime
+- Ascending / descending toggle
+
+**Filtering**
+- Filter by platform: All / Steam / Epic / GOG / Custom
+- Filter by status (any custom status)
+- Favorites-only toggle
+- Minimum rating slider
+- Tag-based filtering
+
+**Per-Page Search Bar**
+- Contextual to each page (Library, Favorites, Recently Played)
+- Live result counter
+- <kbd>/</kbd> hotkey focuses search from anywhere
+
+</td>
+</tr>
+</table>
+
+---
+
+### 🚀 Game Launching & Playtime
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**🟦 Steam**
+- Launches via `steam://run/{appId}`
+- Full Steam Overlay support
+- Polls `tasklist` up to **120 seconds** for process detection
+
+</td>
+<td width="33%" valign="top">
+
+**⬛ Epic Games**
+- Launches via Epic URI with `silent=true`
+- Epic Online Services (EOS) auth works correctly
+- Essential for EOS games like Fortnite
+- Polls up to **180 seconds** for process
+
+</td>
+<td width="33%" valign="top">
+
+**⬜ GOG / Custom**
+- Direct executable spawn
+- Full process monitoring from launch
+- Instant playtime tracking start
+
+</td>
+</tr>
+</table>
+
+**Playtime Tracking**
+- A background thread monitors the launched process
+- Records elapsed minutes when the process exits
+- Updates `last_played` timestamp on launch
+- Fires a `game-session-ended` event to the frontend on exit
+- **Minimize on launch** — ZGameLib hides to tray with a 400 ms delay (for window focus handoff), then auto-restores when the game exits
+
+---
+
+### 🎮 Game Detail Panel
+
+A slide-in drawer (500 px wide) that opens without navigating away from your library.
+
+<table>
+<tr>
+<td valign="top">
+
+**Info Tab**
+- Edit game name inline
+- Toggle favorite (heart icon)
+- Quick-action buttons: Play · Open Folder · Delete
+- Stats grid: total playtime · rating · date added · last played
+- **10-star rating** (interactive, 1–10 scale; fire icon 🔥 appears when rating ≥ 8)
+- **Custom status buttons** — your defined statuses, color-coded
+- **Tags** — add/remove inline; comma or Enter to confirm
+- **Description** — freeform textarea, editable inline
+- **Notes** section (see below)
+
+</td>
+<td valign="top">
+
+**Screenshots Tab**
+- Fetches all Steam screenshots for the game
+- Masonry grid layout
+- Full-screen lightbox
+- Per-screenshot actions:
+  - 📋 Copy Path
+  - 📂 Open File
+  - 🗂 Open Folder
+  - ⬇ Export / Download
+
+**Mods Tab**
+- Appears when an install directory is configured
+- BepInEx / MelonLoader detection + install/uninstall
+- Full mod list with file sizes
+- Add mod via file picker, remove with one click
+- Open mods folder in Explorer
+
+</td>
+</tr>
+</table>
+
+**Notes**
+- Timestamped notes per game — full history preserved
+- Inline editor per note (edit / delete)
+- New note textarea at the bottom
+- <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to save a new note
+
+**Cover Search**
+- Opens `CoverSearchModal` — search Steam's app database by name
+- Browse portrait cover results in a 4-column grid
+- Click any result to apply instantly
+
+---
+
+### 🔧 Mod Loader
+
+Supports both major Unity modding frameworks, integrated directly in the game detail panel.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**BepInEx** *(C# mods for Unity Mono games)*
+- One-click install: fetches the latest x64 ZIP from GitHub Releases, extracts to the game directory, creates `BepInEx/plugins/`
+- Uninstall: removes `BepInEx/` folder + hook files (`winhttp.dll`, `doorstop_config.ini`, etc.)
+- Mod location: `{installDir}/BepInEx/plugins/*.dll`
+
+</td>
+<td width="50%" valign="top">
+
+**MelonLoader** *(IL2CPP & Mono mods)*
+- One-click install: downloads `MelonLoader.x64.zip` from GitHub Releases and extracts it
+- Uninstall: removes `MelonLoader/` folder
+- Mod location: `{installDir}/Mods/*.dll`
+- Includes an AV false-positive warning (expected for mod loaders)
+
+</td>
+</tr>
+</table>
+
+**Shared Mod Management**
+- List view of all installed `.dll` mods with file sizes
+- Add a mod: native file picker → copies DLL to the correct folder
+- Remove a mod: single click, immediate
+- Open mods folder directly in Windows Explorer
+
+---
+
+### 🎡 Game Spin Wheel
+
+Can't decide what to play? Let the wheel decide.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Wheel**
+- SVG donut wheel with dynamic radial gradient segments
+- 60-color palette — each game gets a unique color slot
+- Tick marks around the outer ring
+- Pointer triangle fixed at the top
+- Smooth animated spin with easing: `cubic-bezier(0.08, 0.82, 0.12, 1.0)`
+- Travels 6–10 full rotations before landing
 - Confetti animation on winner reveal
-- Launch winner directly from the result card
 
-### Stats Page
-- Total games, total playtime, average rating
-- Favorites count, completed count, rated count
-- Platform breakdown bars (Steam / Epic / GOG / Custom)
-- Status breakdown (per custom status)
-- Top 5 rated games
+</td>
+<td width="50%" valign="top">
 
-### Themes — 7 built-in
-| Theme | Accent Color | Background |
-|-------|-------------|------------|
-| Dark (default) | Purple | #07060b |
-| AMOLED | Purple | Pure black |
-| Nord | Frost blue | #2e3440 |
-| Catppuccin Mocha | Mauve / Lavender | #1e1e2e |
-| Dracula | Pink / Red | #282a36 |
-| Gruvbox | Warm orange | #282828 |
-| Tokyo Night | Blue | #1a1b26 |
+**Controls**
+- Filter pool: All · Steam · Epic · GOG · Custom · Favorites
+- Free-text search to include only matching games
+- **Exclude last winner** toggle
+- Pool preview: first 5 game covers + "+X more"
+- Pool size counter
 
-All themes use CSS custom properties — every accent color, gradient, glow, and border in the app responds to the theme. Not just backgrounds.
+**Result Card**
+- Winner game cover (full size)
+- Platform badge · Star rating · Playtime
+- **Play Now** button
+- **Spin Again** button
+- **Exclude This Game** button
 
-### System Integration
-- System tray icon — right-click to restore or quit
-- Close to tray (clicking ✕ hides the window)
-- Launch on Windows startup
-- Start minimized to tray
+**History**
+- Last 8 spins remembered in the session
+- Spin counter badge
+- Quick-select from history
 
-### Data
-- All data stored locally in SQLite (`AppData\Roaming\zgamelib\`)
-- Export entire library as JSON (ratings, tags, notes, playtime, cover paths)
-- Import/restore from JSON backup
-- Zero telemetry, zero accounts, zero cloud
+</td>
+</tr>
+</table>
+
+---
+
+### 📊 Statistics
+
+<table>
+<tr>
+<td>
+
+| Card | What it shows |
+|------|--------------|
+| Total Games | Full library count |
+| Total Playtime | Summed across all games |
+| Average Rating | Mean of rated games |
+| Favorites | Count of hearted games |
+| Completed | Count with Completed status |
+| Rated | Count with any rating |
+
+</td>
+<td>
+
+- **Platform breakdown** — horizontal proportion bars: Steam · Epic · GOG · Custom
+- **Status breakdown** — pill badges per custom status with counts
+- **Top 5 rated games** — ranked list with cover thumbnails and star display
+- Staggered entrance animations
+
+</td>
+</tr>
+</table>
+
+---
+
+### 🎨 Themes — 7 Built-In
+
+| # | Theme | Accent | Base Background |
+|---|-------|--------|----------------|
+| 1 | **Dark** *(default)* | 🟣 Purple | `#07060b` |
+| 2 | **AMOLED** | 🟣 Purple | `#000000` pure black |
+| 3 | **Nord** | 🔵 Frost blue | `#2e3440` |
+| 4 | **Catppuccin Mocha** | 🪻 Mauve / Lavender | `#1e1e2e` |
+| 5 | **Dracula** | 🌸 Pink / Red | `#282a36` |
+| 6 | **Gruvbox** | 🟠 Warm orange | `#282828` |
+| 7 | **Tokyo Night** | 💙 Blue cyan | `#1a1b26` |
+
+All themes are implemented as **CSS custom properties** (`--accent-200` through `--accent-900`). Every accent color, gradient, glow, glass effect, and border throughout the entire UI responds to the active theme — not just backgrounds.
+
+<details>
+<summary><strong>CSS Design System (click to expand)</strong></summary>
+
+**Glass Effects**
+- `.glass` — `backdrop-filter: blur(20px)` with frosted border
+- `.glass-strong` — enhanced opacity variant
+- `.glass-sidebar` — sidebar-specific frosted panel
+
+**Glow Effects**
+- `.glow-purple` — accent-colored box shadow
+- `.glow-sm` — subtle glow for hover states
+- `.glow-inner` — inward glow for inputs
+
+**Cards**
+- `.card-lift` — hover translate-Y transform
+- `.card-shine` — gradient shine overlay on hover
+- `.border-gradient` — animated gradient border
+
+**Buttons**
+- `.btn-primary` — gradient fill with glow
+- `.btn-ghost` — glass morphism border style
+- `.btn-icon` — compact square icon button
+
+**Inputs**
+- `.input-glass` — semi-transparent with accent border on focus
+
+**Animations**
+- `fadeIn`, `slideUp`, `scaleIn`, `shimmer` keyframes
+- Default easing via Framer Motion throughout
+
+**Measurements**
+- Card border radius: `14px`
+- Modal border radius: `20px`
+- Sidebar glass blur: `20px`
+
+</details>
+
+---
+
+### 🖥 System Integration
+
+- **System tray icon** — left-click to show/focus; right-click menu: Show · Quit
+- **Close to tray** — ✕ hides the window rather than exiting
+- **Launch on Windows startup** — writes `HKEY_CURRENT_USER\...\Run\ZGameLib` via the Windows registry
+- **Start minimized** — launches directly to tray without showing the window
+
+---
+
+### 🔒 Data & Privacy
+
+- All data lives in **SQLite** at `%APPDATA%\zgamelib\zgamelib.db` — no external services
+- **Export library** — full JSON dump: ratings, tags, notes, playtime, cover paths, statuses
+- **Import / restore** — JSON file re-import; skips exact duplicates
+- **Zero telemetry. Zero accounts. Zero cloud.**
+- The only network calls made are: cover art fetching (Steam CDN / GOG / Steam SearchApps), mod installer downloads from GitHub, and the update check against `zsync.eu` — all explicitly user-initiated or one-time at startup
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| <kbd>/</kbd> | Focus the search bar on any page |
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Save a new note in the notes editor |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Desktop shell | [Tauri 2](https://tauri.app) (Rust + WebView2) |
-| Frontend | React 18 + TypeScript |
-| Styling | Tailwind CSS v3 + CSS custom properties |
-| Animations | Framer Motion |
-| State | Zustand |
-| Data fetching | TanStack Query |
-| Database | SQLite via `rusqlite` (bundled) |
-| HTTP | `ureq` (Rust, cover art + Steam API) |
-| Windows APIs | `winreg` (Steam/Epic/GOG registry), `winapi` flags |
+<table>
+<tr>
+<th>Layer</th>
+<th>Technology</th>
+<th>Version</th>
+</tr>
+<tr>
+<td>Desktop shell</td>
+<td><a href="https://tauri.app">Tauri 2</a> — Rust + WebView2</td>
+<td>2.x</td>
+</tr>
+<tr>
+<td>Frontend framework</td>
+<td>React + TypeScript</td>
+<td>18.3.1</td>
+</tr>
+<tr>
+<td>Build tool</td>
+<td>Vite</td>
+<td>6.0.3</td>
+</tr>
+<tr>
+<td>Styling</td>
+<td>Tailwind CSS + CSS custom properties</td>
+<td>3.4.14</td>
+</tr>
+<tr>
+<td>Animations</td>
+<td>Framer Motion</td>
+<td>11.11.11</td>
+</tr>
+<tr>
+<td>State management</td>
+<td>Zustand</td>
+<td>5.0.1</td>
+</tr>
+<tr>
+<td>Server state / caching</td>
+<td>TanStack Query (React Query)</td>
+<td>5.59.0</td>
+</tr>
+<tr>
+<td>UI primitives</td>
+<td>Radix UI — Dialog, Dropdown, Select, Slider, Tooltip, Popover</td>
+<td>latest</td>
+</tr>
+<tr>
+<td>Icons</td>
+<td>Lucide React</td>
+<td>0.460.0</td>
+</tr>
+<tr>
+<td>Routing</td>
+<td>React Router</td>
+<td>v6</td>
+</tr>
+<tr>
+<td>Database</td>
+<td>SQLite via <code>rusqlite</code> — bundled, no install required</td>
+<td>0.32</td>
+</tr>
+<tr>
+<td>HTTP (Rust)</td>
+<td><code>ureq</code> — cover art, APIs, update checks</td>
+<td>latest</td>
+</tr>
+<tr>
+<td>Windows APIs</td>
+<td><code>winreg</code> — Steam/Epic/GOG registry reads + startup entry</td>
+<td>latest</td>
+</tr>
+<tr>
+<td>Async runtime</td>
+<td>Tokio</td>
+<td>latest</td>
+</tr>
+<tr>
+<td>Archive handling</td>
+<td><code>zip</code> — BepInEx / MelonLoader extraction</td>
+<td>latest</td>
+</tr>
+</table>
 
-### Rust crates
-`tauri 2`, `rusqlite`, `serde`, `serde_json`, `uuid`, `chrono`, `walkdir`, `tokio`, `anyhow`, `dirs`, `open`, `ureq`, `zip`, `winreg`, `base64`
+**All Rust crates:** `tauri 2` · `rusqlite` · `serde` · `serde_json` · `uuid` · `chrono` · `walkdir` · `tokio` · `anyhow` · `dirs` · `open` · `ureq` · `zip` · `winreg` · `base64`
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                   Frontend  (React + TypeScript)              │
+│                                                              │
+│   Pages                 Components              Stores       │
+│   ─────                 ──────────              ──────       │
+│   / Library             Layout (Sidebar,        useGameStore │
+│   /favorites            Topbar, PageSearch)     · games[]    │
+│   /recent               Library (GameCard,      · filters    │
+│   /stats                GameGrid,               · sort       │
+│   /spin                 GameListRow)            · viewMode   │
+│   /settings             GameDetail (drawer)     · hiddenIds  │
+│                         ModLoaderPanel                       │
+│                         Spin Wheel (SVG)        useUIStore   │
+│                         Stats Dashboard         · toasts     │
+│                         Settings                · modals     │
+│                         AddGameModal            · statuses   │
+│                         CoverSearchModal        · logs       │
+│                                                 · update     │
+│   Hooks: useGames (TanStack Query mutations)                 │
+│          useCover (smart cover cache, max 4 concurrent)      │
+│          useFilteredGames (memoized filter + sort)           │
+└──────────────────────────┬───────────────────────────────────┘
+                           │  Tauri IPC  (invoke / listen events)
+┌──────────────────────────▼───────────────────────────────────┐
+│                   Backend  (Rust + Tauri 2)                   │
+│                                                              │
+│   commands/games.rs     — Game & Note CRUD                   │
+│   commands/scanner.rs   — Steam / Epic / GOG / custom scan   │
+│   commands/launcher.rs  — process spawn, playtime tracking   │
+│   commands/modloader.rs — BepInEx / MelonLoader management   │
+│   commands/settings.rs  — settings, import/export, updates   │
+│                                                              │
+│   db/schema.rs          — CREATE TABLE + INDEX statements    │
+│   db/queries.rs         — all SQL read/write operations      │
+│   models.rs             — shared Rust structs                │
+│   lib.rs                — Tauri builder, tray, IPC reg.      │
+└──────────────────────────┬───────────────────────────────────┘
+                           │
+┌──────────────────────────▼───────────────────────────────────┐
+│           SQLite  (%APPDATA%\zgamelib\zgamelib.db)            │
+│           tables:  games  ·  notes  ·  settings              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### State Management in Detail
+
+<details>
+<summary><strong>useGameStore — full shape</strong></summary>
+
+```ts
+// State
+games: Game[]
+selectedGameId: string | null
+search: string
+sortKey: 'name' | 'rating' | 'last_played' | 'date_added' | 'playtime_mins'
+sortAsc: boolean
+viewMode: 'grid' | 'list'
+filters: {
+  platform: 'all' | 'steam' | 'epic' | 'gog' | 'custom'
+  status: GameStatus | 'all'
+  favoritesOnly: boolean
+  minRating: number
+  tags: string[]
+}
+hiddenIds: string[]   // duplicate-hidden game IDs
+showHidden: boolean   // toggle visibility of hidden games
+
+// Actions
+setGames · updateGame · removeGame · addGame
+setSelectedGameId · setSearch · setSortKey · setSortAsc
+setViewMode · setFilter · resetFilters
+hideGames · toggleShowHidden · restoreAllHidden
+```
+
+</details>
+
+<details>
+<summary><strong>useUIStore — full shape</strong></summary>
+
+```ts
+// State
+toasts: Toast[]                     // auto-remove after 3.5 s
+isAddGameOpen: boolean
+isDetailOpen: boolean
+isScanning: boolean
+confirmDialog: { open, title, onConfirm } | null
+customStatuses: StatusConfig[]      // user-defined status list
+logs: LogEntry[]                    // max 500 entries, levels: info | ok | warn | error
+logPanelOpen: boolean
+pendingUpdate: Update | null
+
+// Actions
+addToast · removeToast
+setAddGameOpen · setDetailOpen · setScanning
+openConfirm · closeConfirm
+setCustomStatuses
+addLog · clearLogs · setLogPanelOpen
+setPendingUpdate
+```
+
+</details>
+
+---
+
+## Database Schema
+
+### `games`
+
+| Column | Type | Constraint | Description |
+|--------|------|-----------|-------------|
+| `id` | TEXT | PK | UUID |
+| `name` | TEXT | NOT NULL | Display name |
+| `platform` | TEXT | | `steam` \| `epic` \| `gog` \| `custom` |
+| `exe_path` | TEXT | | Absolute path to executable |
+| `install_dir` | TEXT | | Game root directory |
+| `cover_path` | TEXT | | Local path or remote URL |
+| `description` | TEXT | | User-editable description |
+| `rating` | REAL | | `0`–`10` (0 = unrated) |
+| `status` | TEXT | | `none` \| `backlog` \| `playing` \| `completed` \| `dropped` \| `on_hold` |
+| `is_favorite` | BOOL | | Favorites flag |
+| `playtime_mins` | INTEGER | | Tracked playtime in minutes |
+| `last_played` | TEXT | | ISO 8601 timestamp |
+| `date_added` | TEXT | | ISO 8601 timestamp |
+| `steam_app_id` | INTEGER | UNIQUE | Steam numeric app ID |
+| `epic_app_name` | TEXT | UNIQUE | Epic catalog item ID |
+| `tags` | TEXT | | JSON array of strings |
+| `sort_order` | INTEGER | | Manual drag-sort order |
+
+Indexes: `platform` · `is_favorite` · `status` · `last_played`
+
+### `notes`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT PK | UUID |
+| `game_id` | TEXT FK | References `games.id` |
+| `content` | TEXT | Note body |
+| `created_at` | TEXT | ISO 8601 |
+| `updated_at` | TEXT | ISO 8601 |
+
+Index: `game_id`
+
+### `settings`  *(key-value store)*
+
+| Key | Values | Default | Description |
+|-----|--------|---------|-------------|
+| `theme` | `dark` \| `amoled` \| `nord` \| `catppuccin` \| `dracula` \| `gruvbox` \| `tokyonight` | `dark` | UI theme |
+| `default_view` | `grid` \| `list` | `grid` | Default library view |
+| `grid_columns` | `3`–`6` | `4` | Grid column count |
+| `steam_path` | path string | auto | Steam install override |
+| `epic_path` | path string | auto | Epic manifests path override |
+| `custom_statuses` | JSON array | built-ins | User-defined status list |
+| `auto_scan` | `true` \| `false` | `false` | Scan all platforms on startup |
+| `show_playtime_on_cards` | `true` \| `false` | `true` | Show playtime badge on game cards |
+| `minimize_on_launch` | `true` \| `false` | `true` | Hide window when launching a game |
+| `start_minimized` | `true` \| `false` | `false` | Launch to tray silently |
+| `close_to_tray` | `true` \| `false` | `true` | ✕ hides rather than exits |
+| `autostart` | `true` \| `false` | `false` | Register in Windows startup |
+
+---
+
+## Scanner Details
+
+### 🟦 Steam
+Reads `libraryfolders.vdf` to discover all Steam library locations, then parses every `steamapps/appmanifest_*.acf` manifest file. Cover art fetched from:
+```
+https://cdn.steamstatic.com/steam/apps/{appId}/library_600x900.jpg
+```
+
+### ⬛ Epic Games
+Reads `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests\*.item` JSON files. Each manifest contains `AppName`, `DisplayName`, `InstallLocation`, and `LaunchExecutable`. Launched via:
+```
+com.epicgames.launcher://apps/{AppName}?action=launch&silent=true
+```
+
+### ⬜ GOG
+Reads `HKEY_LOCAL_MACHINE\SOFTWARE\GOG.com\Games` from the Windows registry. Cover art fetched from:
+```
+https://api.gog.com/products/{id}
+```
+Falls back to Steam SearchApps if GOG's API returns nothing useful.
+
+### 📁 Custom / Bulk Folder Scan
+
+Walks up to **6 directory levels deep** looking for executables using this priority chain:
+
+| Priority | Rule |
+|----------|------|
+| 1 | Exe name fuzzy-matches the folder / game name |
+| 2 | Known launcher pattern (`launcher.exe`, `gamelaunch.exe`, etc.) |
+| 3 | Root-level exe (depth 1) |
+| 4 | Largest exe in tree (must be > 5 MB) |
+| 5 | UE4/UE5 Shipping exe — last resort fallback |
+
+**Minimum size threshold:** 500 KB (filters out helper tools)
+
+**Skip-list** (names/patterns that are always ignored): `UnityCrashHandler`, `CrashReporter`, `CEFHelper`, `vcredist`, `dxsetup`, `dotnet`, `VC_redist`, `EAC`, `BEService`, `steamwebhelper`, `unins`, `setup`, `install`, `update`, and many more.
+
+**Skipped directories:** `saves` · `logs` · `screenshots` · `redist` · `__redist` · `support` · `tools`
+
+---
+
+## External Integrations
+
+| Service | Used For | Triggered By |
+|---------|---------|-------------|
+| Steam CDN | Portrait cover art for Steam games | Auto on scan |
+| Steam SearchApps API | Cover search by name (Epic / GOG / Custom) | Auto + Cover Search modal |
+| GOG Product API | Cover art + metadata for GOG games | Auto on scan |
+| GitHub Releases API | Latest BepInEx x64 ZIP download | User clicks Install BepInEx |
+| GitHub Releases API | Latest MelonLoader x64 ZIP download | User clicks Install MelonLoader |
+| Tauri Updater | Checks `https://zsync.eu/zgamelib/update.json` with Minisign public key | App startup |
+
+---
+
+## Project Structure
+
+```
+ZGameLib/
+│
+├── build-release.ps1               # PowerShell production build script (recommended)
+├── package.json                    # npm deps + scripts
+├── vite.config.ts                  # Vite dev server on port 1420
+├── tailwind.config.ts              # Custom accent color system, animations
+├── tsconfig.json                   # TypeScript compiler config
+├── index.html                      # HTML entry, Inter font
+│
+├── src/                            # React + TypeScript frontend
+│   ├── main.tsx                    # React entry point, QueryClient setup
+│   ├── App.tsx                     # Router definition + Layout wrapper
+│   ├── index.css                   # Global styles, all 7 themes as CSS vars
+│   │
+│   ├── pages/
+│   │   ├── Library.tsx             # Main view: RecentlyPlayed carousel + game grid/list
+│   │   ├── Favorites.tsx           # is_favorite=true filtered view
+│   │   ├── RecentlyPlayed.tsx      # last_played DESC, 12 games, time-ago badges
+│   │   ├── Stats.tsx               # Statistics dashboard with animated cards
+│   │   ├── Spin.tsx                # SVG randomizer wheel with history & controls
+│   │   └── Settings.tsx            # Full settings: theme, behavior, statuses, data, about
+│   │
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── Layout.tsx          # Root shell: sidebar + topbar + outlet + portals
+│   │   │   ├── Sidebar.tsx         # Nav links, platform/status filters, overview stats
+│   │   │   ├── Topbar.tsx          # Log panel toggle, Remove Duplicates, Scan, Add Game
+│   │   │   └── PageSearch.tsx      # Per-page search + sort + view toggle bar
+│   │   │
+│   │   ├── library/
+│   │   │   ├── GameCard.tsx        # 3:4 cover, overlay Play/Fav/Folder, platform badge, 🔥 on ≥8
+│   │   │   ├── GameGrid.tsx        # Responsive CSS grid, handles both view modes
+│   │   │   ├── GameListRow.tsx     # Compact row: thumbnail, name+status, tags, playtime, rating
+│   │   │   └── RecentlyPlayed.tsx  # Horizontal scrollable carousel (max 12 games)
+│   │   │
+│   │   ├── game/
+│   │   │   ├── GameDetail.tsx      # Slide-in drawer with Info / Screenshots / Mods tabs
+│   │   │   ├── GameNotes.tsx       # Note list + inline edit + new note (Ctrl+Enter to save)
+│   │   │   └── ModLoaderPanel.tsx  # BepInEx/MelonLoader install, mod list, add/remove
+│   │   │
+│   │   ├── modals/
+│   │   │   ├── AddGameModal.tsx    # Single exe picker or bulk folder scan
+│   │   │   ├── CoverSearchModal.tsx# Search Steam by name, 4-col grid, click to apply
+│   │   │   └── ConfirmModal.tsx    # Yes/No dialog with error-style accent
+│   │   │
+│   │   └── ui/
+│   │       ├── Badge.tsx           # Platform / tag pill badges
+│   │       ├── StarRating.tsx      # Interactive 10-star rating widget
+│   │       ├── Icons.tsx           # 40+ custom SVG icons
+│   │       ├── Toast.tsx           # Bottom-right toasts (3.5 s auto-dismiss, max visible)
+│   │       ├── LogPanel.tsx        # Right-side scan log (max 500 entries, auto-scroll)
+│   │       ├── EmptyState.tsx      # Centered placeholder with action button
+│   │       ├── GlassCard.tsx       # Frosted glass effect card wrapper
+│   │       └── ErrorBoundary.tsx   # React error boundary with fallback UI
+│   │
+│   ├── store/
+│   │   ├── useGameStore.ts         # Games, filters, sort, view, hiddenIds (Zustand)
+│   │   └── useUIStore.ts           # Toasts, modals, custom statuses, logs, update (Zustand)
+│   │
+│   ├── hooks/
+│   │   ├── useGames.ts             # TanStack Query mutations + scan operations
+│   │   └── useCover.ts             # Smart cover loader: cache, queue (max 4 concurrent), cancel
+│   │
+│   └── lib/
+│       ├── tauri.ts                # Typed wrappers for every Tauri IPC command
+│       ├── types.ts                # TypeScript interfaces: Game, Note, AppSettings, StatusConfig…
+│       └── utils.ts                # Formatters, platform color maps, time-ago, constants
+│
+└── src-tauri/                      # Tauri + Rust backend
+    ├── tauri.conf.json             # App ID, window (1400×900, min 1000×700), CSP, updater, bundle
+    ├── Cargo.toml                  # Rust crate deps
+    ├── build.rs                    # Tauri build script
+    │
+    └── src/
+        ├── main.rs                 # Entry point — calls lib::run()
+        ├── lib.rs                  # Tauri builder, system tray, window events, IPC registration
+        ├── models.rs               # Game, Note, AppSettings, CoverCandidate structs
+        │
+        ├── commands/
+        │   ├── games.rs            # get/create/update/delete game; get/create/update/delete note
+        │   ├── scanner.rs          # Steam/Epic/GOG/custom scan, cover fetch, icon extraction
+        │   ├── launcher.rs         # Process spawn, playtime tracking, minimize/restore
+        │   ├── modloader.rs        # BepInEx + MelonLoader install/uninstall + mod management
+        │   └── settings.rs         # get/save settings, export/import library, update check
+        │
+        └── db/
+            ├── schema.rs           # CREATE TABLE + CREATE INDEX statements
+            └── queries.rs          # All SQL operations (CRUD, filter, upsert)
+```
 
 ---
 
 ## Building from Source
 
 ### Prerequisites
-- [Rust](https://rustup.rs/) (stable toolchain)
+
+- [Rust](https://rustup.rs/) stable toolchain (MSVC target — `x86_64-pc-windows-msvc`)
 - [Node.js](https://nodejs.org/) 18+
-- [pnpm](https://pnpm.io/) or npm
+- npm (bundled with Node)
+- Windows 10 or 11 with WebView2 runtime
+  *(pre-installed on Win11; available via Windows Update or [direct download](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) on Win10)*
+
+### Development
 
 ```bash
 # Clone
@@ -145,80 +836,39 @@ cd ZGameLib
 # Install frontend dependencies
 npm install
 
-# Development (hot-reload)
+# Launch dev build (Vite hot-reload on :1420 + Tauri window)
 npx tauri dev
+```
 
-# Production build (outputs MSI + NSIS to src-tauri/target/release/bundle/)
+Rust source changes trigger a full backend recompile. Frontend changes hot-reload instantly.
+
+### Production Build
+
+```powershell
+# Recommended — use the included build script
+.\build-release.ps1
+```
+
+Or manually:
+
+```bash
 npx tauri build
 ```
 
----
-
-## Project Structure
+Output directory: `src-tauri/target/release/bundle/`
 
 ```
-ZGameLib/
-├── src/                        # React frontend
-│   ├── pages/
-│   │   ├── Library.tsx         # Main game grid + list
-│   │   ├── Spin.tsx            # Game spin wheel
-│   │   ├── Stats.tsx           # Library statistics
-│   │   ├── Settings.tsx        # Settings page
-│   │   ├── Favorites.tsx       # Favorites view
-│   │   └── RecentlyPlayed.tsx  # Recently played
-│   ├── components/
-│   │   ├── layout/             # Sidebar, Topbar
-│   │   ├── library/            # GameCard, GameListRow, RecentlyPlayed
-│   │   ├── game/               # GameDetail, GameNotes, ModLoaderPanel
-│   │   ├── modals/             # AddGameModal, CoverSearchModal, ConfirmModal
-│   │   └── ui/                 # Badge, Toast, StarRating, EmptyState, Icons
-│   ├── store/
-│   │   ├── useGameStore.ts     # Game list + filters + view mode (Zustand)
-│   │   └── useUIStore.ts       # UI state, toasts, custom statuses
-│   ├── hooks/
-│   │   ├── useGames.ts         # CRUD + scan operations
-│   │   └── useCover.ts         # Cover URL resolution + cache
-│   ├── lib/
-│   │   ├── tauri.ts            # All Tauri command wrappers
-│   │   ├── types.ts            # TypeScript types (Game, AppSettings, etc.)
-│   │   └── utils.ts            # Helpers, formatters, platform color maps
-│   └── index.css               # Global styles, CSS variables, all 7 themes
-│
-├── src-tauri/src/              # Rust backend
-│   ├── commands/
-│   │   ├── scanner.rs          # Steam/Epic/GOG/custom game scanning
-│   │   ├── launcher.rs         # Game launch + playtime tracking
-│   │   ├── cover.rs            # Cover art fetch, search, base64 encode
-│   │   ├── settings.rs         # Settings load/save
-│   │   └── data.rs             # Import/export library JSON
-│   ├── db/
-│   │   └── queries.rs          # All SQLite queries (games, notes, settings)
-│   ├── models.rs               # Rust structs (Game, AppSettings, Note, etc.)
-│   └── lib.rs                  # Tauri app setup, command registration
-│
-└── tailwind.config.ts          # Tailwind config with CSS-var accent colors
+bundle/
+├── msi/   ZGameLib_0.4.1_x64_en-US.msi
+└── nsis/  ZGameLib_0.4.1_x64-setup.exe
 ```
 
----
+### Frontend Only
 
-## Scanner Details
-
-The auto-scanner covers:
-
-**Steam** — reads `libraryfolders.vdf` to find all library paths, then scans `steamapps/*.acf` manifests. Fetches portrait cover from `https://cdn.steamstatic.com/steam/apps/{id}/library_600x900.jpg`.
-
-**Epic Games** — reads `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests\*.item` JSON files. Launches via Epic URI so Epic Online Services (EOS) authentication works correctly (fixes games like Fortnite).
-
-**GOG** — reads Windows registry under `HKLM\SOFTWARE\GOG.com\Games`. Fetches cover from GOG's product API (`api.gog.com/products/{id}`), falls back to Steam SearchApps.
-
-**Custom / Bulk folder scan** — scans subfolders for executables. Exe selection priority:
-1. Exe whose name matches the folder/game name
-2. Known launcher pattern (`launcher.exe`, `gamelaunch.exe`, etc.)
-3. Root directory exe
-4. Largest exe > 5 MB
-5. Shipping exe (UE4/UE5 fallback — last resort)
-
-Skipped: crash reporters, web helpers, redistributables, anti-cheat tools, editors, SDKs.
+```bash
+npm run vite:dev    # Vite dev server (no Tauri window)
+npm run vite:build  # Build frontend → dist/
+```
 
 ---
 
@@ -234,8 +884,10 @@ Free to use, modify, and distribute. No warranty.
 
 ---
 
-## Made by
+<div align="center">
 
-**[TheHolyOneZ](https://github.com/TheHolyOneZ)**
+Made by **[TheHolyOneZ](https://github.com/TheHolyOneZ)**
 
 If you find it useful, a GitHub star goes a long way. ⭐
+
+</div>
