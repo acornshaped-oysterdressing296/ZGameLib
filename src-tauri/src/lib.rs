@@ -21,13 +21,14 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(DbState(Mutex::new(conn)))
+        .manage(launcher::ActivePids::new())
         .setup(|app| {
             let show_item = MenuItem::with_id(app, "show", "Show ZGameLib", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(app.default_window_icon().expect("app icon missing").clone())
                 .menu(&menu)
                 .tooltip("ZGameLib")
                 .show_menu_on_left_click(false)

@@ -54,7 +54,8 @@ pub fn save_settings(state: State<DbState>, settings: AppSettings) -> Result<(),
     }
     let statuses_json = serde_json::to_string(&settings.custom_statuses).map_err(|e| e.to_string())?;
     queries::set_setting(&conn, "custom_statuses", &statuses_json).map_err(|e| e.to_string())?;
-    queries::set_setting(&conn, "grid_columns", &settings.grid_columns.to_string()).map_err(|e| e.to_string())?;
+    let grid_columns = settings.grid_columns.clamp(1, 8);
+    queries::set_setting(&conn, "grid_columns", &grid_columns.to_string()).map_err(|e| e.to_string())?;
     queries::set_setting(&conn, "auto_scan", if settings.auto_scan { "true" } else { "false" }).map_err(|e| e.to_string())?;
     queries::set_setting(&conn, "show_playtime_on_cards", if settings.show_playtime_on_cards { "true" } else { "false" }).map_err(|e| e.to_string())?;
     queries::set_setting(&conn, "minimize_on_launch", if settings.minimize_on_launch { "true" } else { "false" }).map_err(|e| e.to_string())?;

@@ -36,10 +36,37 @@ fn get_steam_root() -> Option<String> {
 }
 
 fn parse_vdf_value(line: &str) -> Option<String> {
-    // Extract quoted value from a VDF line like:  "key"   "value"
-    // Use split() not splitn(4) — splitn keeps the trailing quote in the last part
-    let parts: Vec<&str> = line.split('"').collect();
-    parts.get(3).map(|s| s.to_string())
+    // Extract the value from a VDF line like:  "key"   "value"
+    // Handles escaped quotes (\") inside values.
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    let mut fields: Vec<String> = Vec::new();
+
+    while i < bytes.len() && fields.len() < 2 {
+        while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+            i += 1;
+        }
+        if i >= bytes.len() || bytes[i] != b'"' {
+            break;
+        }
+        i += 1;
+        let mut field = String::new();
+        while i < bytes.len() {
+            if bytes[i] == b'\\' && i + 1 < bytes.len() && bytes[i + 1] == b'"' {
+                field.push('"');
+                i += 2;
+            } else if bytes[i] == b'"' {
+                i += 1;
+                break;
+            } else {
+                field.push(bytes[i] as char);
+                i += 1;
+            }
+        }
+        fields.push(field);
+    }
+
+    fields.into_iter().nth(1)
 }
 
 fn get_steam_library_paths(steam_root: &str) -> Vec<String> {
@@ -1047,7 +1074,7 @@ pub fn fetch_url_as_base64(url: String) -> Result<String, String> {
         "jpg".to_string()
     };
 
-    let cache_file = data_dir.join(format!("{:x}.{}", md5_simple(&url), ext));
+    let cache_file = data_dir.join(format!("{:x}.{}", fnv_hash(&url), ext));
 
     let data: Vec<u8> = if cache_file.exists() {
         std::fs::read(&cache_file).map_err(|e| e.to_string())?
@@ -1068,12 +1095,8 @@ pub fn fetch_url_as_base64(url: String) -> Result<String, String> {
         _ => "image/jpeg",
     };
 
-    let mut b64 = String::new();
-    {
-        use std::io::Write;
-        let mut encoder = Base64Encoder::new(&mut b64);
-        encoder.write_all(&data).map_err(|e| e.to_string())?;
-    }
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
     Ok(format!("data:{};base64,{}", mime, b64))
 }
 
@@ -1091,7 +1114,7 @@ fn extract_exe_icon_internal(exe_path: &str) -> Option<String> {
 
     std::fs::create_dir_all(&data_dir).ok()?;
 
-    let hash = format!("{:x}", md5_simple(exe_path));
+    let hash = format!("{:x}", fnv_hash(exe_path));
     let dest = data_dir.join(format!("{}.png", hash));
 
     if dest.exists() {
@@ -1128,7 +1151,7 @@ pub fn extract_exe_icon(exe_path: String) -> Result<String, String> {
     extract_exe_icon_internal(&exe_path).ok_or_else(|| "Failed to extract icon".to_string())
 }
 
-fn md5_simple(input: &str) -> u64 {
+fn fnv_hash(input: &str) -> u64 {
     let mut hash: u64 = 0xcbf29ce484222325;
     for byte in input.bytes() {
         hash ^= byte as u64;
@@ -1207,6 +1230,7 @@ pub fn find_cover_in_dir(dir_path: String) -> Result<String, String> {
 /// Read a local image file and return it as a base64 data URI.
 #[tauri::command]
 pub fn read_image_base64(file_path: String) -> Result<String, String> {
+    use base64::Engine;
     let path = std::path::Path::new(&file_path);
     if !path.exists() {
         return Err("File not found".to_string());
@@ -1224,82 +1248,6 @@ pub fn read_image_base64(file_path: String) -> Result<String, String> {
         _ => "image/png",
     };
 
-    use std::io::Write;
-    let mut b64 = String::new();
-    {
-        let mut encoder = Base64Encoder::new(&mut b64);
-        encoder.write_all(&data).map_err(|e| e.to_string())?;
-    }
-
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
     Ok(format!("data:{};base64,{}", mime, b64))
-}
-
-/// Minimal base64 encoder that writes to a String.
-struct Base64Encoder<'a> {
-    out: &'a mut String,
-    buf: [u8; 3],
-    buf_len: usize,
-}
-
-impl<'a> Base64Encoder<'a> {
-    fn new(out: &'a mut String) -> Self {
-        Self { out, buf: [0; 3], buf_len: 0 }
-    }
-
-    fn flush_buf(&mut self) {
-        const CHARS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        if self.buf_len == 0 { return; }
-        let b = &self.buf;
-        match self.buf_len {
-            3 => {
-                let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | (b[2] as u32);
-                self.out.push(CHARS[((n >> 18) & 63) as usize] as char);
-                self.out.push(CHARS[((n >> 12) & 63) as usize] as char);
-                self.out.push(CHARS[((n >> 6) & 63) as usize] as char);
-                self.out.push(CHARS[(n & 63) as usize] as char);
-            }
-            2 => {
-                let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8);
-                self.out.push(CHARS[((n >> 18) & 63) as usize] as char);
-                self.out.push(CHARS[((n >> 12) & 63) as usize] as char);
-                self.out.push(CHARS[((n >> 6) & 63) as usize] as char);
-                self.out.push('=');
-            }
-            1 => {
-                let n = (b[0] as u32) << 16;
-                self.out.push(CHARS[((n >> 18) & 63) as usize] as char);
-                self.out.push(CHARS[((n >> 12) & 63) as usize] as char);
-                self.out.push('=');
-                self.out.push('=');
-            }
-            _ => {}
-        }
-        self.buf_len = 0;
-    }
-}
-
-impl<'a> std::io::Write for Base64Encoder<'a> {
-    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-        let mut i = 0;
-        while i < data.len() {
-            self.buf[self.buf_len] = data[i];
-            self.buf_len += 1;
-            i += 1;
-            if self.buf_len == 3 {
-                self.flush_buf();
-            }
-        }
-        Ok(data.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.flush_buf();
-        Ok(())
-    }
-}
-
-impl<'a> Drop for Base64Encoder<'a> {
-    fn drop(&mut self) {
-        self.flush_buf();
-    }
 }

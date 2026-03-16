@@ -1,6 +1,16 @@
 use tauri::{AppHandle, Emitter, Manager, State};
 use chrono::Utc;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 use crate::db::{DbState, queries};
+
+pub struct ActivePids(pub Arc<Mutex<HashSet<u32>>>);
+
+impl ActivePids {
+    pub fn new() -> Self {
+        Self(Arc::new(Mutex::new(HashSet::new())))
+    }
+}
 
 // ── Windows-only process helpers (no extra crates needed) ─────────────────
 
@@ -128,6 +138,7 @@ pub fn launch_game(app: AppHandle, state: State<DbState>, id: String) -> Result<
 pub fn launch_steam_game(
     app: AppHandle,
     state: State<DbState>,
+    active_pids: State<ActivePids>,
     app_id: String,
     game_id: String,
 ) -> Result<(), String> {
@@ -170,6 +181,7 @@ pub fn launch_steam_game(
     if let Some(exe) = exe_path {
         let app_clone = app.clone();
         let gid = game_id.clone();
+        let pids = active_pids.0.clone();
 
         std::thread::spawn(move || {
             #[cfg(windows)]
@@ -194,11 +206,18 @@ pub fn launch_steam_game(
                 }
 
                 if let Some(pid) = pid {
+                    {
+                        let mut set = pids.lock().unwrap_or_else(|e| e.into_inner());
+                        if !set.insert(pid) {
+                            return;
+                        }
+                    }
                     // Poll every 5 s until the process disappears
                     loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
                         if !is_pid_running(pid) { break; }
                     }
+                    pids.lock().unwrap_or_else(|e| e.into_inner()).remove(&pid);
                     let elapsed_mins = start.elapsed().as_secs() as i64 / 60;
                     finish_session(&app_clone, &gid, elapsed_mins);
                 }
@@ -213,6 +232,7 @@ pub fn launch_steam_game(
 pub fn launch_epic_game(
     app: AppHandle,
     state: State<DbState>,
+    active_pids: State<ActivePids>,
     app_name: String,
     game_id: String,
 ) -> Result<(), String> {
@@ -259,6 +279,7 @@ pub fn launch_epic_game(
     if let Some(exe) = exe_path {
         let app_clone = app.clone();
         let gid = game_id.clone();
+        let pids = active_pids.0.clone();
 
         std::thread::spawn(move || {
             #[cfg(windows)]
@@ -283,11 +304,18 @@ pub fn launch_epic_game(
                 }
 
                 if let Some(pid) = pid {
+                    {
+                        let mut set = pids.lock().unwrap_or_else(|e| e.into_inner());
+                        if !set.insert(pid) {
+                            return;
+                        }
+                    }
                     // Poll every 5 s until the process disappears
                     loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
                         if !is_pid_running(pid) { break; }
                     }
+                    pids.lock().unwrap_or_else(|e| e.into_inner()).remove(&pid);
                     let elapsed_mins = start.elapsed().as_secs() as i64 / 60;
                     finish_session(&app_clone, &gid, elapsed_mins);
                 }
