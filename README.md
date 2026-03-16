@@ -9,7 +9,7 @@ Track, organize, rate and launch every game you own — Steam, Epic Games, GOG a
 ## Download
 
 ## For the latest version, always go to the website: [https://zsync.eu/zgamelib/](https://zsync.eu/zgamelib/)
-
+### Showcase: https://www.youtube.com/watch?v=rlqUUqAPOxU
 > Content links here may not be updated. As of 16.03.2026, these are outdated — use the website to download the latest version.
 
 | Installer                                  | Link                                                                                       |
