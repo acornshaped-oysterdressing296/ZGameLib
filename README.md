@@ -8,7 +8,7 @@ Track, organize, rate and launch every game you own — Steam, Epic Games, GOG a
 
 ## Website
 
-**[zsync.eu/zgamelib](https://zsync.eu/zgamelib/)** — latest downloads, release notes, and the main hub for ZGameLib.
+**[zsync.eu/zgamelib](https://zsync.eu/zgamelib/)** — latest downloads and the main hub for ZGameLib.
 
 ---
 
