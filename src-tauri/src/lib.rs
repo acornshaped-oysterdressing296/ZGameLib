@@ -18,6 +18,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(DbState(Mutex::new(conn)))
         .setup(|app| {
             let show_item = MenuItem::with_id(app, "show", "Show ZGameLib", true, None::<&str>)?;
@@ -122,6 +124,8 @@ pub fn run() {
             settings::export_library,
             settings::import_library,
             settings::save_file,
+            settings::check_for_update,
+            settings::open_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

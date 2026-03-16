@@ -119,3 +119,19 @@ pub fn export_library(state: State<DbState>) -> Result<String, String> {
 pub fn save_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn check_for_update(ts: u64) -> Result<serde_json::Value, String> {
+    let url = format!("https://zsync.eu/zgamelib/version.json?t={}", ts);
+    let response = ureq::get(&url)
+        .call()
+        .map_err(|e| e.to_string())?;
+    let body = response.into_string().map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+    Ok(json)
+}
+
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    open::that(&url).map_err(|e| e.to_string())
+}
