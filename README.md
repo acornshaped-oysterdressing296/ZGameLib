@@ -216,7 +216,7 @@ Skipped: crash reporters, web helpers, redistributables, anti-cheat tools, edito
 MIT License — see [LICENSE](LICENSE).
 
 ```
-Copyright (c) 2025 TheHolyOneZ
+Copyright (c) 2026 TheHolyOneZ
 ```
 
 Free to use, modify, and distribute. No warranty.
