@@ -9,6 +9,7 @@ import { api } from "@/lib/tauri";
 import { cn, formatPlaytime, formatDate, PLATFORM_COLORS } from "@/lib/utils";
 import StarRating from "@/components/ui/StarRating";
 import GameNotes from "./GameNotes";
+import ModLoaderPanel from "./ModLoaderPanel";
 import Badge from "@/components/ui/Badge";
 import CoverSearchModal from "@/components/modals/CoverSearchModal";
 import {
@@ -35,7 +36,7 @@ export default function GameDetail() {
   const [descVal, setDescVal] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [showCoverSearch, setShowCoverSearch] = useState(false);
-  const [activeTab, setActiveTab] = useState<"info" | "screenshots">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "screenshots" | "mods">("info");
   const [screenshots, setScreenshots] = useState<string[] | null>(null);
   const [loadingShots, setLoadingShots] = useState(false);
 
@@ -198,6 +199,7 @@ export default function GameDetail() {
               {[
                 { key: "info" as const, label: "Info" },
                 ...(game.steam_app_id ? [{ key: "screenshots" as const, label: "Screenshots" }] : []),
+                ...(game.install_dir ? [{ key: "mods" as const, label: "Mods" }] : []),
               ].map((tab) => (
                 <button
                   key={tab.key}
@@ -238,6 +240,12 @@ export default function GameDetail() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === "mods" && game.install_dir && (
+              <div className="flex-1 overflow-y-auto p-6">
+                <ModLoaderPanel installDir={game.install_dir} exePath={game.exe_path} />
               </div>
             )}
 

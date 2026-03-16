@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/Icons";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
+import { PromoCards } from "@/components/game/ModsPromoPanel";
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -192,7 +193,8 @@ export default function Settings() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="p-6 max-w-xl mx-auto">
+      <div className="p-6 flex gap-6 max-w-[1100px] mx-auto">
+      <div className="flex-1 min-w-0">
 
         <motion.div
           initial={{ opacity: 0, y: -8 }}
@@ -587,7 +589,7 @@ export default function Settings() {
                 </div>
                 <div>
                   <p className="text-[13px] font-bold text-white">ZGameLib</p>
-                  <p className="text-[11px] text-slate-600">v0.3.0</p>
+                  <p className="text-[11px] text-slate-600">v0.4.0</p>
                 </div>
                 <p className="text-[11px] text-slate-500">
                   Made by{" "}
@@ -632,6 +634,12 @@ export default function Settings() {
           </div>
 
         </div>
+      </div>
+
+      <div className="w-72 shrink-0 pt-16">
+        <PromoCards />
+      </div>
+
       </div>
     </div>
   );

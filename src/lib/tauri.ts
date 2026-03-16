@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Game, Note, CreateGamePayload, UpdateGamePayload, ScanResult, AppSettings, ImportResult, CoverCandidate, UpdateInfo } from "./types";
+import type { Game, Note, CreateGamePayload, UpdateGamePayload, ScanResult, AppSettings, ImportResult, CoverCandidate, UpdateInfo, ModLoaderStatus, ModInfo } from "./types";
 
 export const api = {
   getAllGames: () => invoke<Game[]>("get_all_games"),
@@ -39,4 +39,13 @@ export const api = {
   saveFile: (path: string, content: string) => invoke<void>("save_file", { path, content }),
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update", { ts: Date.now() }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
+
+  checkModloaderStatus: (installDir: string) => invoke<ModLoaderStatus>("check_modloader_status", { installDir }),
+  installBepinex: (installDir: string) => invoke<void>("install_bepinex", { installDir }),
+  uninstallBepinex: (installDir: string) => invoke<void>("uninstall_bepinex", { installDir }),
+  installMelonloader: (installDir: string) => invoke<void>("install_melonloader", { installDir }),
+  uninstallMelonloader: (installDir: string) => invoke<void>("uninstall_melonloader", { installDir }),
+  openModsFolder: (installDir: string) => invoke<void>("open_mods_folder", { installDir }),
+  installMod: (installDir: string, sourcePath: string) => invoke<ModInfo>("install_mod", { installDir, sourcePath }),
+  deleteMod: (installDir: string, fileName: string) => invoke<void>("delete_mod", { installDir, fileName }),
 };

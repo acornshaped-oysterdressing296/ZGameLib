@@ -100,3 +100,16 @@ export interface UpdateInfo {
 
 export type SortKey = "name" | "rating" | "last_played" | "date_added" | "playtime_mins";
 export type ViewMode = "grid" | "list";
+
+export interface ModInfo {
+  name: string;
+  file_name: string;
+  size_bytes: number;
+}
+
+export interface ModLoaderStatus {
+  bepinex_installed: boolean;
+  melonloader_installed: boolean;
+  mods_folder: string | null;
+  mods: ModInfo[];
+}

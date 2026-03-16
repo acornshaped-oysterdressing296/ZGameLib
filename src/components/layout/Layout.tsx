@@ -14,6 +14,7 @@ import AddGameModal from "@/components/modals/AddGameModal";
 import GameDetail from "@/components/game/GameDetail";
 import ConfirmModal from "@/components/modals/ConfirmModal";
 import LogPanel from "@/components/ui/LogPanel";
+import ModsPromoPanel from "@/components/game/ModsPromoPanel";
 import { CloseIcon, DownloadIcon, GlobeIcon, CheckIcon } from "@/components/ui/Icons";
 import type { Update } from "@tauri-apps/plugin-updater";
 
@@ -212,14 +213,18 @@ function AppBehavior() {
 export default function Layout() {
   const pendingUpdate = useUIStore((s) => s.pendingUpdate);
   const setPendingUpdate = useUIStore((s) => s.setPendingUpdate);
+  const isDetailOpen = useUIStore((s) => s.isDetailOpen);
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Topbar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto relative">
           <Outlet />
+          <AnimatePresence>
+            {isDetailOpen && <ModsPromoPanel />}
+          </AnimatePresence>
         </main>
       </div>
       <GameDetail />
