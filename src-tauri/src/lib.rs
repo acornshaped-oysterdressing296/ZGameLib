@@ -3,7 +3,7 @@ mod db;
 mod commands;
 
 use db::{DbState, init_db, queries};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use commands::{games, scanner, launcher, settings, modloader};
 use tauri::{
     menu::{Menu, MenuItem},
@@ -20,7 +20,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .manage(DbState(Mutex::new(conn)))
+        .manage(DbState(Arc::new(Mutex::new(conn))))
         .manage(launcher::ActivePids::new())
         .setup(|app| {
             let show_item = MenuItem::with_id(app, "show", "Show ZGameLib", true, None::<&str>)?;
@@ -100,6 +100,7 @@ pub fn run() {
             games::update_game,
             games::delete_game,
             games::toggle_favorite,
+            games::check_exe_health,
             games::get_notes,
             games::create_note,
             games::update_note,

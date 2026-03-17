@@ -125,6 +125,7 @@ pub fn save_file(path: String, content: String) -> Result<(), String> {
 pub fn check_for_update(ts: u64) -> Result<serde_json::Value, String> {
     let url = format!("https://zsync.eu/zgamelib/version.json?t={}", ts);
     let response = ureq::get(&url)
+        .timeout(std::time::Duration::from_secs(15))
         .call()
         .map_err(|e| e.to_string())?;
     let body = response.into_string().map_err(|e| e.to_string())?;

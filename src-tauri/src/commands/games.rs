@@ -82,7 +82,17 @@ pub fn toggle_favorite(state: State<DbState>, id: String) -> Result<bool, String
     Ok(game.is_favorite)
 }
 
-// Notes
+#[tauri::command]
+pub fn check_exe_health(state: State<DbState>, id: String) -> Result<bool, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let game = queries::get_game_by_id(&conn, &id)
+        .map_err(|e| e.to_string())?
+        .ok_or("Game not found")?;
+    match &game.exe_path {
+        Some(p) if !p.is_empty() => Ok(std::path::Path::new(p).exists()),
+        _ => Ok(false),
+    }
+}
 
 #[tauri::command]
 pub fn get_notes(state: State<DbState>, game_id: String) -> Result<Vec<Note>, String> {
@@ -108,7 +118,6 @@ pub fn create_note(state: State<DbState>, game_id: String, content: String) -> R
 #[tauri::command]
 pub fn update_note(state: State<DbState>, id: String, content: String) -> Result<Note, String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
-    // fetch existing note
     let mut stmt = conn.prepare("SELECT id, game_id, content, created_at, updated_at FROM notes WHERE id=?1")
         .map_err(|e| e.to_string())?;
     let mut rows = stmt.query_map(rusqlite::params![id], |row| {

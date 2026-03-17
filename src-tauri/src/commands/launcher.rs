@@ -12,8 +12,6 @@ impl ActivePids {
     }
 }
 
-// ── Windows-only process helpers (no extra crates needed) ─────────────────
-
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 #[cfg(windows)]
@@ -50,11 +48,8 @@ fn is_pid_running(pid: u32) -> bool {
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default();
-    // Output has a data row if running; "INFO: No tasks..." if not
     out.contains('"')
 }
-
-// ── Session-end helper: update DB + emit + restore window ─────────────────
 
 fn finish_session(app: &AppHandle, game_id: &str, elapsed_mins: i64) {
     let now = Utc::now().to_rfc3339();
@@ -69,18 +64,14 @@ fn finish_session(app: &AppHandle, game_id: &str, elapsed_mins: i64) {
         }
     }
     let _ = app.emit("game-session-ended", game_id);
-    // Restore window after game exits
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.unminimize();
         let _ = win.set_focus();
     }
 }
 
-// ── Commands ──────────────────────────────────────────────────────────────
-
 #[tauri::command]
 pub fn launch_game(app: AppHandle, state: State<DbState>, id: String) -> Result<(), String> {
-    // Phase 1: gather data, release mutex
     let (exe_path, minimize) = {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
         let game = queries::get_game_by_id(&conn, &id)
@@ -92,12 +83,10 @@ pub fn launch_game(app: AppHandle, state: State<DbState>, id: String) -> Result<
         (exe, min)
     };
 
-    // Phase 2: spawn process
     let child = std::process::Command::new(&exe_path)
         .spawn()
         .map_err(|e| format!("Failed to launch: {}", e))?;
 
-    // Record last_played immediately
     let now = Utc::now().to_rfc3339();
     {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
@@ -110,8 +99,6 @@ pub fn launch_game(app: AppHandle, state: State<DbState>, id: String) -> Result<
     if minimize {
         let app_min = app.clone();
         std::thread::spawn(move || {
-            // Short delay so the game window can appear and grab focus first,
-            // preventing Windows from immediately re-focusing ZGameLib
             std::thread::sleep(std::time::Duration::from_millis(400));
             if let Some(win) = app_min.get_webview_window("main") {
                 let _ = win.minimize();
@@ -119,7 +106,6 @@ pub fn launch_game(app: AppHandle, state: State<DbState>, id: String) -> Result<
         });
     }
 
-    // Phase 3: background thread — wait for exit, record playtime
     let app_clone = app.clone();
     let game_id = id.clone();
     let start = std::time::Instant::now();
@@ -142,7 +128,6 @@ pub fn launch_steam_game(
     app_id: String,
     game_id: String,
 ) -> Result<(), String> {
-    // Get exe_path for process monitoring + minimize setting
     let (exe_path, minimize) = {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
         let exe = queries::get_game_by_id(&conn, &game_id)
@@ -153,11 +138,9 @@ pub fn launch_steam_game(
         (exe, min)
     };
 
-    // Launch via Steam URI
     open::that(format!("steam://run/{}", app_id))
         .map_err(|e| format!("Failed to launch Steam game: {}", e))?;
 
-    // Record last_played immediately
     let now = Utc::now().to_rfc3339();
     {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
@@ -177,7 +160,6 @@ pub fn launch_steam_game(
         });
     }
 
-    // Background: find game process by exe name, wait for exit, record playtime
     if let Some(exe) = exe_path {
         let app_clone = app.clone();
         let gid = game_id.clone();
@@ -195,7 +177,6 @@ pub fn launch_steam_game(
 
                 let start = std::time::Instant::now();
 
-                // Wait up to 120 s for process to appear (Steam can be slow to launch)
                 let mut pid: Option<u32> = None;
                 for _ in 0..120 {
                     if let Some(p) = find_pid_by_exe_name(&exe_name) {
@@ -212,7 +193,6 @@ pub fn launch_steam_game(
                             return;
                         }
                     }
-                    // Poll every 5 s until the process disappears
                     loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
                         if !is_pid_running(pid) { break; }
@@ -236,7 +216,6 @@ pub fn launch_epic_game(
     app_name: String,
     game_id: String,
 ) -> Result<(), String> {
-    // Get exe_path for process monitoring + minimize setting
     let (exe_path, minimize) = {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
         let exe = queries::get_game_by_id(&conn, &game_id)
@@ -247,7 +226,6 @@ pub fn launch_epic_game(
         (exe, min)
     };
 
-    // Launch via Epic Games Launcher URI
     let uri = format!(
         "com.epicgames.launcher://apps/{}?action=launch&silent=true",
         app_name
@@ -255,7 +233,6 @@ pub fn launch_epic_game(
     open::that(&uri)
         .map_err(|e| format!("Failed to launch Epic game: {}", e))?;
 
-    // Record last_played immediately
     let now = Utc::now().to_rfc3339();
     {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
@@ -275,7 +252,6 @@ pub fn launch_epic_game(
         });
     }
 
-    // Background: find game process by exe name, wait for exit, record playtime
     if let Some(exe) = exe_path {
         let app_clone = app.clone();
         let gid = game_id.clone();
@@ -293,7 +269,6 @@ pub fn launch_epic_game(
 
                 let start = std::time::Instant::now();
 
-                // Wait up to 180 s for process to appear (Epic launcher can be slow)
                 let mut pid: Option<u32> = None;
                 for _ in 0..180 {
                     if let Some(p) = find_pid_by_exe_name(&exe_name) {
@@ -310,7 +285,6 @@ pub fn launch_epic_game(
                             return;
                         }
                     }
-                    // Poll every 5 s until the process disappears
                     loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
                         if !is_pid_running(pid) { break; }

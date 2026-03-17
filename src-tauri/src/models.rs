@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 pub struct Game {
     pub id: String,
     pub name: String,
-    pub platform: String, // "steam" | "epic" | "custom"
+    pub platform: String,
     pub exe_path: Option<String>,
     pub install_dir: Option<String>,
     pub cover_path: Option<String>,
     pub description: Option<String>,
     pub rating: Option<f64>,
-    pub status: String, // "none" | "backlog" | "playing" | "completed" | "dropped" | "on_hold"
+    pub status: String,
     pub is_favorite: bool,
     pub playtime_mins: i64,
     pub last_played: Option<String>,

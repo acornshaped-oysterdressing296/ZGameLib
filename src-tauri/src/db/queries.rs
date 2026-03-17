@@ -91,7 +91,6 @@ pub fn delete_game(conn: &Connection, id: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Returns (id, cover_path) if a game with this steam_app_id exists, else None.
 pub fn get_steam_game_cover(conn: &Connection, steam_app_id: &str) -> Option<(String, Option<String>)> {
     conn.query_row(
         "SELECT id, cover_path FROM games WHERE steam_app_id = ?1",
@@ -101,7 +100,6 @@ pub fn get_steam_game_cover(conn: &Connection, steam_app_id: &str) -> Option<(St
     .ok()
 }
 
-/// Returns (id, cover_path) if a game with this epic_app_name exists, else None.
 pub fn get_epic_game_cover(conn: &Connection, epic_app_name: &str) -> Option<(String, Option<String>)> {
     conn.query_row(
         "SELECT id, cover_path FROM games WHERE epic_app_name = ?1",
@@ -126,8 +124,6 @@ pub fn game_exists_by_steam_id(conn: &Connection, steam_app_id: &str) -> bool {
 pub fn game_exists_by_epic_name(conn: &Connection, epic_app_name: &str) -> bool {
     get_epic_game_cover(conn, epic_app_name).is_some()
 }
-
-// Notes
 
 pub fn get_notes_for_game(conn: &Connection, game_id: &str) -> anyhow::Result<Vec<Note>> {
     let mut stmt = conn.prepare(
@@ -168,8 +164,6 @@ pub fn delete_note(conn: &Connection, id: &str) -> anyhow::Result<()> {
     conn.execute("DELETE FROM notes WHERE id = ?1", params![id])?;
     Ok(())
 }
-
-// Settings
 
 pub fn get_setting(conn: &Connection, key: &str) -> Option<String> {
     conn.query_row(

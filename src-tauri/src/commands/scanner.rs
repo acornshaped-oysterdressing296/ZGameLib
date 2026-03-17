@@ -1,8 +1,11 @@
 use tauri::{AppHandle, Emitter, State};
 use chrono::Utc;
 use uuid::Uuid;
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::db::{DbState, queries};
 use crate::models::{Game, ScanResult, CoverCandidate};
+
+static SCAN_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[derive(serde::Serialize, Clone)]
 struct LogEvent {
@@ -16,8 +19,6 @@ fn log(app: &AppHandle, level: &str, message: &str) {
         message: message.to_string(),
     });
 }
-
-// ── Steam ────────────────────────────────────────────────────────────────────
 
 #[cfg(windows)]
 fn get_steam_root() -> Option<String> {
@@ -36,8 +37,6 @@ fn get_steam_root() -> Option<String> {
 }
 
 fn parse_vdf_value(line: &str) -> Option<String> {
-    // Extract the value from a VDF line like:  "key"   "value"
-    // Handles escaped quotes (\") inside values.
     let bytes = line.as_bytes();
     let mut i = 0;
     let mut fields: Vec<String> = Vec::new();
@@ -89,7 +88,6 @@ fn get_steam_library_paths(steam_root: &str) -> Vec<String> {
 }
 
 fn scan_steam_library(library_path: &str) -> Vec<(String, String, String)> {
-    // Returns (app_id, name, install_dir)
     let apps_dir = std::path::Path::new(library_path).join("steamapps");
     let mut games = vec![];
 
@@ -132,8 +130,6 @@ fn scan_steam_library(library_path: &str) -> Vec<(String, String, String)> {
     games
 }
 
-// ── Epic ─────────────────────────────────────────────────────────────────────
-
 fn get_epic_manifests_path() -> String {
     #[cfg(windows)]
     {
@@ -155,7 +151,7 @@ struct EpicManifest {
     app_name: String,
     display_name: String,
     install_dir: String,
-    launch_exe: Option<String>, // relative path to main exe from install_dir
+    launch_exe: Option<String>,
 }
 
 fn scan_epic_manifests(manifests_path: &str) -> Vec<EpicManifest> {
@@ -193,11 +189,6 @@ fn scan_epic_manifests(manifests_path: &str) -> Vec<EpicManifest> {
     games
 }
 
-// ── Steam exe finder ──────────────────────────────────────────────────────
-
-/// Find the main game executable for a game install directory.
-/// Priority: name-matched exe → launcher exe → largest exe (>5MB) → shipping exe (last resort).
-/// Shipping exes (UE4/UE5) can't be launched standalone so they're deprioritized.
 fn find_steam_game_exe(install_dir: &str, game_name: &str) -> Option<String> {
     let skip_exe_words = [
         "unins", "setup", "install", "update", "crash", "report", "vc_redist",
@@ -208,7 +199,6 @@ fn find_steam_game_exe(install_dir: &str, game_name: &str) -> Option<String> {
         "subsidiaryapp", "steamworkshelper", "touchup", "cleanup", "7za",
         "unreal", "epicwebhelper", "wine",
     ];
-    // Skip directories that never contain the game executable
     let skip_dirs = [
         "saves", "save", "logs", "log", "screenshots", "video", "videos",
         "music", "audio", "cinematics", "movies", "temp", "cache",
@@ -217,21 +207,19 @@ fn find_steam_game_exe(install_dir: &str, game_name: &str) -> Option<String> {
         "__installer", "mono", "tools", "sdk", "editor",
     ];
 
-    // Normalize game name to alphanumeric only for fuzzy matching
     let name_norm: String = game_name.to_lowercase()
         .chars().filter(|c| c.is_alphanumeric()).collect();
 
-    let mut best_named:    Option<(std::path::PathBuf, u64)> = None; // P1: name match
-    let mut best_launcher: Option<(std::path::PathBuf, u64)> = None; // P2: "launcher" in name
-    let mut best_largest:  Option<(std::path::PathBuf, u64)> = None; // P3: largest exe >5MB
-    let mut best_shipping: Option<(std::path::PathBuf, u64)> = None; // P4: UE shipping (last resort)
-    let mut best_root:     Option<(std::path::PathBuf, u64)> = None; // P2.5: exe in root dir
+    let mut best_named:    Option<(std::path::PathBuf, u64)> = None;
+    let mut best_launcher: Option<(std::path::PathBuf, u64)> = None;
+    let mut best_largest:  Option<(std::path::PathBuf, u64)> = None;
+    let mut best_shipping: Option<(std::path::PathBuf, u64)> = None;
+    let mut best_root:     Option<(std::path::PathBuf, u64)> = None;
 
     for entry in walkdir::WalkDir::new(install_dir)
         .max_depth(6)
         .into_iter()
         .filter_entry(|e| {
-            // Prune known non-game subdirectories to speed up the walk
             if e.file_type().is_dir() && e.depth() > 0 {
                 let n = e.file_name().to_string_lossy().to_lowercase();
                 !skip_dirs.iter().any(|&s| n == s)
@@ -248,18 +236,15 @@ fn find_steam_game_exe(install_dir: &str, game_name: &str) -> Option<String> {
         if skip_exe_words.iter().any(|s| fname.contains(s)) { continue; }
 
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-        // Ignore tiny executables (<500KB) — they're usually stubs or helpers
         if size < 500_000 { continue; }
 
-        // Shipping exes (UE4/UE5) — lowest priority, they can't be launched standalone
         if fname.ends_with("-win64-shipping.exe") || fname.ends_with("-win32-shipping.exe") {
             if best_shipping.as_ref().map_or(true, |(_, s)| size > *s) {
                 best_shipping = Some((path.to_path_buf(), size));
             }
-            continue; // don't let shipping exe win other categories
+            continue;
         }
 
-        // Priority 1: exe stem contains the game name (or vice-versa)
         let stem_norm: String = path.file_stem().unwrap_or_default()
             .to_string_lossy().to_lowercase()
             .chars().filter(|c| c.is_alphanumeric()).collect();
@@ -271,21 +256,18 @@ fn find_steam_game_exe(install_dir: &str, game_name: &str) -> Option<String> {
             }
         }
 
-        // Priority 2: "launcher" in name (e.g. FortniteLauncher.exe, GameLauncher.exe)
         if fname.contains("launcher") && !fname.contains("epicgames") {
             if best_launcher.as_ref().map_or(true, |(_, s)| size > *s) {
                 best_launcher = Some((path.to_path_buf(), size));
             }
         }
 
-        // Priority 2.5: exe directly in root install dir (depth 1)
         if entry.depth() <= 1 && size > 1_000_000 {
             if best_root.as_ref().map_or(true, |(_, s)| size > *s) {
                 best_root = Some((path.to_path_buf(), size));
             }
         }
 
-        // Priority 3: largest exe overall (must be >5MB to avoid helpers)
         if size > 5_000_000 {
             if best_largest.as_ref().map_or(true, |(_, s)| size > *s) {
                 best_largest = Some((path.to_path_buf(), size));
@@ -297,10 +279,6 @@ fn find_steam_game_exe(install_dir: &str, game_name: &str) -> Option<String> {
         .map(|(p, _)| p.to_string_lossy().to_string())
 }
 
-// ── HTTP cover download helper ─────────────────────────────────────────────
-
-/// Download an image from `url` into the local covers cache directory.
-/// Logs the outcome via the app handle. Returns the local file path or None.
 fn download_image_to_cache(url: &str, filename: &str, app: &AppHandle) -> Option<String> {
     let data_dir = dirs::data_local_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -315,7 +293,7 @@ fn download_image_to_cache(url: &str, filename: &str, app: &AppHandle) -> Option
         return Some(dest.to_string_lossy().to_string());
     }
 
-    match ureq::get(url).call() {
+    match ureq::get(url).timeout(std::time::Duration::from_secs(15)).call() {
         Ok(response) => {
             let ct = response.content_type().to_string();
             if !ct.starts_with("image/") {
@@ -341,14 +319,12 @@ fn download_image_to_cache(url: &str, filename: &str, app: &AppHandle) -> Option
     }
 }
 
-/// Search Steam's public API for a game by name and download the best matching cover.
-/// Used to find covers for Epic/GOG games that don't have their own CDN.
 fn search_steam_cover_for_name(game_name: &str, app: &AppHandle) -> Option<String> {
     let url = format!(
         "https://steamcommunity.com/actions/SearchApps/{}",
         game_name.trim()
     );
-    let response = ureq::get(&url).call().ok()?;
+    let response = ureq::get(&url).timeout(std::time::Duration::from_secs(15)).call().ok()?;
     let mut body = String::new();
     use std::io::Read;
     response.into_reader().read_to_string(&mut body).ok()?;
@@ -366,10 +342,16 @@ fn search_steam_cover_for_name(game_name: &str, app: &AppHandle) -> Option<Strin
     )
 }
 
-// ── Tauri Commands ────────────────────────────────────────────────────────────
-
 #[tauri::command]
-pub fn scan_steam_games(app: AppHandle, state: State<DbState>) -> Result<ScanResult, String> {
+pub async fn scan_steam_games(app: AppHandle, state: State<'_, DbState>) -> Result<ScanResult, String> {
+    let db = state.0.clone();
+    let app2 = app.clone();
+    tokio::task::spawn_blocking(move || scan_steam_games_inner(app2, db))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn scan_steam_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>) -> Result<ScanResult, String> {
     let steam_root = match get_steam_root() {
         Some(r) => r,
         None => {
@@ -381,14 +363,12 @@ pub fn scan_steam_games(app: AppHandle, state: State<DbState>) -> Result<ScanRes
     let library_paths = get_steam_library_paths(&steam_root);
     log(&app, "info", &format!("Found {} library path(s)", library_paths.len()));
 
-    // Phase 1: Collect all game data — NO mutex, NO network I/O
     let raw_games: Vec<(String, String, String)> = library_paths.iter()
         .flat_map(|p| scan_steam_library(p))
         .collect();
     let total = raw_games.len();
     log(&app, "info", &format!("Total Steam games found: {}", total));
 
-    // Phase 2: Find exe + cover — NO mutex, may do filesystem walk and HTTP
     struct SteamEntry {
         app_id: String,
         name: String,
@@ -402,14 +382,12 @@ pub fn scan_steam_games(app: AppHandle, state: State<DbState>) -> Result<ScanRes
         log(&app, "info", &format!("--- [{}] {}", app_id, name));
         log(&app, "info", &format!("  dir: {}", install_dir));
 
-        // Find the game's main exe (UE4/UE5 shipping > name match > largest)
         let exe_path = find_steam_game_exe(&install_dir, &name);
         match &exe_path {
             Some(p) => log(&app, "ok", &format!("  exe: {}", p)),
             None => log(&app, "warn", "  exe: not found"),
         }
 
-        // Cover: local image files → Steam CDN portrait → Steam CDN header → exe icon
         let cover = if let Some(local) = find_cover_in_dir_internal(&install_dir) {
             log(&app, "ok", &format!("  cover: local file ({})", local));
             Some(local)
@@ -464,19 +442,17 @@ pub fn scan_steam_games(app: AppHandle, state: State<DbState>) -> Result<ScanRes
         entries.push(SteamEntry { app_id, name, install_dir, exe_path, cover });
     }
 
-    // Phase 3: Lock mutex once, do all DB operations
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute_batch("BEGIN").map_err(|e| e.to_string())?;
     let now = Utc::now().to_rfc3339();
     let mut added = 0;
     let mut skipped = 0;
 
     for entry in entries {
         if let Some((existing_id, _)) = queries::get_steam_game_cover(&conn, &entry.app_id) {
-            // Always update cover (may have a better local path now)
             if let Some(ref cover) = entry.cover {
                 let _ = queries::update_cover_path(&conn, &existing_id, cover);
             }
-            // Fill in exe_path if the record doesn't have one yet
             if let Some(ref exe) = entry.exe_path {
                 let _ = conn.execute(
                     "UPDATE games SET exe_path = ?1 WHERE id = ?2 AND (exe_path IS NULL OR exe_path = '')",
@@ -510,21 +486,28 @@ pub fn scan_steam_games(app: AppHandle, state: State<DbState>) -> Result<ScanRes
         }
     }
 
+    conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
     log(&app, "ok", &format!("Steam scan done: {} added, {} skipped", added, skipped));
     Ok(ScanResult { added, skipped, total })
 }
 
 #[tauri::command]
-pub fn scan_epic_games(app: AppHandle, state: State<DbState>) -> Result<ScanResult, String> {
+pub async fn scan_epic_games(app: AppHandle, state: State<'_, DbState>) -> Result<ScanResult, String> {
+    let db = state.0.clone();
+    let app2 = app.clone();
+    tokio::task::spawn_blocking(move || scan_epic_games_inner(app2, db))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn scan_epic_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>) -> Result<ScanResult, String> {
     let manifests_path = get_epic_manifests_path();
     log(&app, "info", &format!("Epic manifests path: {}", manifests_path));
 
-    // Phase 1: Parse manifests — NO mutex
     let raw = scan_epic_manifests(&manifests_path);
     let total = raw.len();
     log(&app, "info", &format!("Total Epic games found: {}", total));
 
-    // Phase 2: Find covers — NO mutex, exe icon extraction runs here
     struct EpicEntry {
         app_name: String,
         display_name: String,
@@ -537,7 +520,6 @@ pub fn scan_epic_games(app: AppHandle, state: State<DbState>) -> Result<ScanResu
     for m in raw {
         log(&app, "info", &format!("--- {}", m.display_name));
 
-        // Resolve full exe path from install_dir + launch_exe
         let exe_path = m.launch_exe.as_ref().map(|rel| {
             std::path::Path::new(&m.install_dir).join(rel).to_string_lossy().to_string()
         });
@@ -546,12 +528,10 @@ pub fn scan_epic_games(app: AppHandle, state: State<DbState>) -> Result<ScanResu
             None => log(&app, "warn", "  exe: LaunchExecutable missing in manifest"),
         }
 
-        // Try image files in install dir → Steam CDN (search by name) → exe icon
         let cover = if let Some(local) = find_cover_in_dir_internal(&m.install_dir) {
             log(&app, "ok", &format!("  cover: local file ({})", local));
             Some(local)
         } else {
-            // Try to find cover from Steam CDN by searching the game name
             log(&app, "info", &format!("  searching Steam CDN for \"{}\"...", m.display_name));
             let steam_cover = search_steam_cover_for_name(&m.display_name, &app);
             if steam_cover.is_some() {
@@ -585,15 +565,14 @@ pub fn scan_epic_games(app: AppHandle, state: State<DbState>) -> Result<ScanResu
         });
     }
 
-    // Phase 3: Lock mutex once, do all DB operations
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute_batch("BEGIN").map_err(|e| e.to_string())?;
     let now = Utc::now().to_rfc3339();
     let mut added = 0;
     let mut skipped = 0;
 
     for entry in entries {
         if let Some((existing_id, existing_cover)) = queries::get_epic_game_cover(&conn, &entry.app_name) {
-            // Update cover if the existing record has none
             if existing_cover.is_none() {
                 if let Some(ref cover) = entry.cover {
                     let _ = queries::update_cover_path(&conn, &existing_id, cover);
@@ -626,15 +605,13 @@ pub fn scan_epic_games(app: AppHandle, state: State<DbState>) -> Result<ScanResu
         }
     }
 
+    conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
     log(&app, "ok", &format!("Epic scan done: {} added, {} skipped", added, skipped));
     Ok(ScanResult { added, skipped, total })
 }
 
-// ── GOG ───────────────────────────────────────────────────────────────────────
-
 #[cfg(windows)]
 fn get_gog_games_from_registry() -> Vec<(String, String, String, String)> {
-    // Returns (product_id, name, exe_path, install_path)
     use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
     use winreg::RegKey;
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
@@ -669,7 +646,7 @@ fn get_gog_games_from_registry() -> Vec<(String, String, String, String)> { vec!
 
 fn get_gog_cover(product_id: &str, app: &AppHandle) -> Option<String> {
     let url = format!("https://api.gog.com/products/{}?expand=description", product_id);
-    let response = ureq::get(&url).call().ok()?;
+    let response = ureq::get(&url).timeout(std::time::Duration::from_secs(15)).call().ok()?;
     let mut body = String::new();
     use std::io::Read;
     response.into_reader().read_to_string(&mut body).ok()?;
@@ -681,7 +658,15 @@ fn get_gog_cover(product_id: &str, app: &AppHandle) -> Option<String> {
 }
 
 #[tauri::command]
-pub fn scan_gog_games(app: AppHandle, state: State<DbState>) -> Result<ScanResult, String> {
+pub async fn scan_gog_games(app: AppHandle, state: State<'_, DbState>) -> Result<ScanResult, String> {
+    let db = state.0.clone();
+    let app2 = app.clone();
+    tokio::task::spawn_blocking(move || scan_gog_games_inner(app2, db))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn scan_gog_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>) -> Result<ScanResult, String> {
     let raw = get_gog_games_from_registry();
     let total = raw.len();
     log(&app, "info", &format!("GOG: found {} game(s) in registry", total));
@@ -694,7 +679,7 @@ pub fn scan_gog_games(app: AppHandle, state: State<DbState>) -> Result<ScanResul
         let exe_path = if !exe.is_empty() && std::path::Path::new(&exe).exists() {
             Some(exe)
         } else {
-            find_steam_game_exe(&install_dir, &name) // reuse exe finder
+            find_steam_game_exe(&install_dir, &name)
         };
         match &exe_path {
             Some(p) => log(&app, "ok", &format!("  exe: {}", p)),
@@ -710,7 +695,6 @@ pub fn scan_gog_games(app: AppHandle, state: State<DbState>) -> Result<ScanResul
                 log(&app, "ok", "  cover: GOG CDN ✓");
                 c
             } else {
-                // Fallback: search Steam CDN by game name
                 log(&app, "info", &format!("  GOG CDN failed, searching Steam CDN for \"{}\"...", name));
                 let sc = search_steam_cover_for_name(&name, &app);
                 match &sc {
@@ -723,7 +707,8 @@ pub fn scan_gog_games(app: AppHandle, state: State<DbState>) -> Result<ScanResul
         entries.push(GogEntry { product_id, name, exe_path, install_dir, cover });
     }
 
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute_batch("BEGIN").map_err(|e| e.to_string())?;
     let now = chrono::Utc::now().to_rfc3339();
     let mut added = 0;
     let mut skipped = 0;
@@ -754,16 +739,15 @@ pub fn scan_gog_games(app: AppHandle, state: State<DbState>) -> Result<ScanResul
         if queries::insert_game(&conn, &game).is_ok() { added += 1; }
     }
 
+    conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
     log(&app, "ok", &format!("GOG scan done: {} added, {} skipped", added, skipped));
     Ok(ScanResult { added, skipped, total })
 }
 
-// ── Cover search ──────────────────────────────────────────────────────────────
-
 #[tauri::command]
 pub fn search_game_covers(query: String) -> Result<Vec<CoverCandidate>, String> {
     let url = format!("https://steamcommunity.com/actions/SearchApps/{}", query.trim());
-    let response = ureq::get(&url).call().map_err(|e| e.to_string())?;
+    let response = ureq::get(&url).timeout(std::time::Duration::from_secs(15)).call().map_err(|e| e.to_string())?;
     let mut body = String::new();
     use std::io::Read;
     response.into_reader().read_to_string(&mut body).map_err(|e| e.to_string())?;
@@ -784,8 +768,6 @@ pub fn search_game_covers(query: String) -> Result<Vec<CoverCandidate>, String> 
         .collect();
     Ok(candidates)
 }
-
-// ── Screenshot gallery ────────────────────────────────────────────────────────
 
 #[tauri::command]
 pub fn get_game_screenshots(steam_app_id: String) -> Result<Vec<String>, String> {
@@ -814,7 +796,6 @@ pub fn get_game_screenshots(steam_app_id: String) -> Result<Vec<String>, String>
         }
     }
 
-    // Newest first
     shots.sort_by(|a, b| {
         let ta = std::fs::metadata(a).and_then(|m| m.modified()).ok();
         let tb = std::fs::metadata(b).and_then(|m| m.modified()).ok();
@@ -825,33 +806,53 @@ pub fn get_game_screenshots(steam_app_id: String) -> Result<Vec<String>, String>
 }
 
 #[tauri::command]
-pub fn scan_all_games(app: AppHandle, state: State<DbState>) -> Result<ScanResult, String> {
-    log(&app, "info", "=== Scanning Steam ===");
-    let steam = scan_steam_games(app.clone(), state.clone())
-        .unwrap_or(ScanResult { added: 0, skipped: 0, total: 0 });
-    log(&app, "info", "=== Scanning Epic ===");
-    let epic = scan_epic_games(app.clone(), state.clone())
-        .unwrap_or(ScanResult { added: 0, skipped: 0, total: 0 });
-    log(&app, "info", "=== Scanning GOG ===");
-    let gog = scan_gog_games(app.clone(), state)
-        .unwrap_or(ScanResult { added: 0, skipped: 0, total: 0 });
-    log(&app, "ok", &format!(
-        "=== All done: {} added, {} skipped, {} total ===",
-        steam.added + epic.added + gog.added,
-        steam.skipped + epic.skipped + gog.skipped,
-        steam.total + epic.total + gog.total,
-    ));
-    Ok(ScanResult {
-        added: steam.added + epic.added + gog.added,
-        skipped: steam.skipped + epic.skipped + gog.skipped,
-        total: steam.total + epic.total + gog.total,
+pub async fn scan_all_games(app: AppHandle, state: State<'_, DbState>) -> Result<ScanResult, String> {
+    if SCAN_RUNNING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        return Err("A scan is already running".to_string());
+    }
+    let db = state.0.clone();
+    let app2 = app.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let empty = ScanResult { added: 0, skipped: 0, total: 0 };
+        log(&app2, "info", "=== Scanning Steam ===");
+        let steam = scan_steam_games_inner(app2.clone(), db.clone()).unwrap_or(empty.clone());
+        log(&app2, "info", "=== Scanning Epic ===");
+        let epic = scan_epic_games_inner(app2.clone(), db.clone()).unwrap_or(empty.clone());
+        log(&app2, "info", "=== Scanning GOG ===");
+        let gog = scan_gog_games_inner(app2.clone(), db).unwrap_or(empty);
+        log(&app2, "ok", &format!(
+            "=== All done: {} added, {} skipped, {} total ===",
+            steam.added + epic.added + gog.added,
+            steam.skipped + epic.skipped + gog.skipped,
+            steam.total + epic.total + gog.total,
+        ));
+        Ok(ScanResult {
+            added: steam.added + epic.added + gog.added,
+            skipped: steam.skipped + epic.skipped + gog.skipped,
+            total: steam.total + epic.total + gog.total,
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?;
+    SCAN_RUNNING.store(false, Ordering::SeqCst);
+    result
 }
 
-/// Scan a folder recursively for .exe files and bulk-add them as custom games.
-/// Looks one or two levels deep for executables, using the parent folder name as the game name.
 #[tauri::command]
-pub fn scan_folder_for_games(app: AppHandle, state: State<DbState>, folder_path: String) -> Result<ScanResult, String> {
+pub async fn scan_folder_for_games(app: AppHandle, state: State<'_, DbState>, folder_path: String) -> Result<ScanResult, String> {
+    if SCAN_RUNNING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        return Err("A scan is already running".to_string());
+    }
+    let db = state.0.clone();
+    let app2 = app.clone();
+    let result = tokio::task::spawn_blocking(move || scan_folder_for_games_inner(app2, db, folder_path))
+        .await
+        .map_err(|e| e.to_string())?;
+    SCAN_RUNNING.store(false, Ordering::SeqCst);
+    result
+}
+
+fn scan_folder_for_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rusqlite::Connection>>, folder_path: String) -> Result<ScanResult, String> {
     let root = std::path::Path::new(&folder_path);
     if !root.exists() || !root.is_dir() {
         log(&app, "error", &format!("Folder does not exist: {}", folder_path));
@@ -859,13 +860,11 @@ pub fn scan_folder_for_games(app: AppHandle, state: State<DbState>, folder_path:
     }
     log(&app, "info", &format!("Scanning folder: {}", folder_path));
 
-    // Common non-game executables to skip
     let skip_names: Vec<&str> = vec![
         "unins", "setup", "install", "update", "crash", "report", "vc_redist",
         "dxsetup", "dotnet", "directx", "unity", "ue4prereq", "launch_", "bootstrap",
     ];
 
-    // ── Phase 1: Walk filesystem — collect candidates, NO mutex ──────────────
     struct GameCandidate {
         game_name: String,
         exe_path: String,
@@ -889,7 +888,6 @@ pub fn scan_folder_for_games(app: AppHandle, state: State<DbState>, folder_path:
             let mut best_exe: Option<std::path::PathBuf> = None;
             let mut best_size: u64 = 0;
 
-            // Scan one level deep
             if let Ok(sub_entries) = std::fs::read_dir(&sub_path) {
                 for sub_entry in sub_entries.flatten() {
                     let file = sub_entry.path();
@@ -907,7 +905,6 @@ pub fn scan_folder_for_games(app: AppHandle, state: State<DbState>, folder_path:
                 }
             }
 
-            // Also scan one level deeper (common pattern: GameFolder/bin/game.exe)
             if best_exe.is_none() {
                 if let Ok(sub_entries) = std::fs::read_dir(&sub_path) {
                     for sub_entry in sub_entries.flatten() {
@@ -944,7 +941,6 @@ pub fn scan_folder_for_games(app: AppHandle, state: State<DbState>, folder_path:
     let total = candidates.len();
     log(&app, "info", &format!("Found {} game candidate(s)", total));
 
-    // ── Phase 2: Find covers — NO mutex, exe icon extraction runs here ────────
     struct GameWithCover {
         game_name: String,
         exe_path: String,
@@ -976,8 +972,8 @@ pub fn scan_folder_for_games(app: AppHandle, state: State<DbState>, folder_path:
         });
     }
 
-    // ── Phase 3: Lock mutex once, do all DB operations ────────────────────────
-    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    conn.execute_batch("BEGIN").map_err(|e| e.to_string())?;
     let now = Utc::now().to_rfc3339();
     let mut added = 0;
     let mut skipped = 0;
@@ -1018,11 +1014,11 @@ pub fn scan_folder_for_games(app: AppHandle, state: State<DbState>, folder_path:
         }
     }
 
+    conn.execute_batch("COMMIT").map_err(|e| e.to_string())?;
     log(&app, "ok", &format!("Folder scan done: {} added, {} skipped", added, skipped));
     Ok(ScanResult { added, skipped, total })
 }
 
-/// Set a custom cover image for a game by copying the file into the app data directory.
 #[tauri::command]
 pub fn set_game_cover(state: State<DbState>, game_id: String, image_path: String) -> Result<String, String> {
     let src = std::path::Path::new(&image_path);
@@ -1045,7 +1041,6 @@ pub fn set_game_cover(state: State<DbState>, game_id: String, image_path: String
 
     let cover_path = dest.to_string_lossy().to_string();
 
-    // Update the game record
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     conn.execute(
         "UPDATE games SET cover_path = ?1 WHERE id = ?2",
@@ -1055,8 +1050,6 @@ pub fn set_game_cover(state: State<DbState>, game_id: String, image_path: String
     Ok(cover_path)
 }
 
-/// Download a remote image URL and return it as a base64 data URI.
-/// The result is cached to disk so subsequent calls for the same URL are instant.
 #[tauri::command]
 pub fn fetch_url_as_base64(url: String) -> Result<String, String> {
     let data_dir = dirs::data_local_dir()
@@ -1066,7 +1059,6 @@ pub fn fetch_url_as_base64(url: String) -> Result<String, String> {
 
     std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
 
-    // Derive extension from URL for correct MIME type
     let ext = url.rsplit('.').next().unwrap_or("jpg").to_lowercase();
     let ext = if ext.len() <= 4 && ext.chars().all(|c| c.is_ascii_alphanumeric()) {
         ext
@@ -1079,7 +1071,7 @@ pub fn fetch_url_as_base64(url: String) -> Result<String, String> {
     let data: Vec<u8> = if cache_file.exists() {
         std::fs::read(&cache_file).map_err(|e| e.to_string())?
     } else {
-        let response = ureq::get(&url).call().map_err(|e| e.to_string())?;
+        let response = ureq::get(&url).timeout(std::time::Duration::from_secs(15)).call().map_err(|e| e.to_string())?;
         let mut bytes = Vec::new();
         use std::io::Read;
         response.into_reader().read_to_end(&mut bytes).map_err(|e| e.to_string())?;
@@ -1100,7 +1092,6 @@ pub fn fetch_url_as_base64(url: String) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", mime, b64))
 }
 
-/// Internal helper — extract exe icon without Tauri State dependency
 #[cfg(windows)]
 fn extract_exe_icon_internal(exe_path: &str) -> Option<String> {
     use std::process::Command;
@@ -1145,7 +1136,6 @@ fn extract_exe_icon_internal(_exe_path: &str) -> Option<String> {
     None
 }
 
-/// Extract the icon from an exe file using Windows shell API and save as PNG.
 #[tauri::command]
 pub fn extract_exe_icon(exe_path: String) -> Result<String, String> {
     extract_exe_icon_internal(&exe_path).ok_or_else(|| "Failed to extract icon".to_string())
@@ -1160,8 +1150,6 @@ fn fnv_hash(input: &str) -> u64 {
     hash
 }
 
-/// Search a game's install directory for cover/poster images.
-/// Returns the path to the best image found, or None.
 fn find_cover_in_dir_internal(dir: &str) -> Option<String> {
     let dir_path = std::path::Path::new(dir);
     if !dir_path.exists() || !dir_path.is_dir() {
@@ -1174,7 +1162,7 @@ fn find_cover_in_dir_internal(dir: &str) -> Option<String> {
         "thumbnail", "art", "logo", "key_art", "keyart",
     ];
 
-    let mut best_match: Option<(std::path::PathBuf, u32)> = None; // (path, priority)
+    let mut best_match: Option<(std::path::PathBuf, u32)> = None;
 
     if let Ok(entries) = std::fs::read_dir(dir_path) {
         for entry in entries.flatten() {
@@ -1189,7 +1177,6 @@ fn find_cover_in_dir_internal(dir: &str) -> Option<String> {
 
             let fname = path.file_stem().unwrap_or_default().to_string_lossy().to_lowercase();
 
-            // Check priority names
             let mut priority = 100u32;
             for (i, name) in priority_names.iter().enumerate() {
                 if fname.contains(name) {
@@ -1198,7 +1185,6 @@ fn find_cover_in_dir_internal(dir: &str) -> Option<String> {
                 }
             }
 
-            // Prefer larger images if same priority
             if let Some((_, best_prio)) = &best_match {
                 if priority < *best_prio {
                     best_match = Some((path, priority));
@@ -1220,14 +1206,12 @@ fn find_cover_in_dir_internal(dir: &str) -> Option<String> {
     best_match.map(|(p, _)| p.to_string_lossy().to_string())
 }
 
-/// Tauri command: find a cover image in a game's install directory
 #[tauri::command]
 pub fn find_cover_in_dir(dir_path: String) -> Result<String, String> {
     find_cover_in_dir_internal(&dir_path)
         .ok_or_else(|| "No cover image found in directory".to_string())
 }
 
-/// Read a local image file and return it as a base64 data URI.
 #[tauri::command]
 pub fn read_image_base64(file_path: String) -> Result<String, String> {
     use base64::Engine;

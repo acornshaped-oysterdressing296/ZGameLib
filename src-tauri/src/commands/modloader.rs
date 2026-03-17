@@ -3,8 +3,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
-// ── helpers ────────────────────────────────────────────────────────────────
-
 fn p(install_dir: &str, sub: &str) -> PathBuf {
     Path::new(install_dir).join(sub)
 }
@@ -53,6 +51,7 @@ fn fetch_json(url: &str) -> Result<serde_json::Value, String> {
     let mut body = String::new();
     ureq::get(url)
         .set("User-Agent", "ZGameLib")
+        .timeout(std::time::Duration::from_secs(15))
         .call()
         .map_err(|e| e.to_string())?
         .into_reader()
@@ -65,6 +64,7 @@ fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
     ureq::get(url)
         .set("User-Agent", "ZGameLib")
+        .timeout(std::time::Duration::from_secs(15))
         .call()
         .map_err(|e| e.to_string())?
         .into_reader()
@@ -72,8 +72,6 @@ fn download_bytes(url: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| e.to_string())?;
     Ok(bytes)
 }
-
-// ── types ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, serde::Serialize, Clone)]
 pub struct ModLoaderStatus {
@@ -90,14 +88,11 @@ pub struct ModInfo {
     pub size_bytes: u64,
 }
 
-// ── commands ───────────────────────────────────────────────────────────────
-
 #[tauri::command]
 pub fn check_modloader_status(install_dir: String) -> Result<ModLoaderStatus, String> {
     let bepinex = is_bepinex_installed(&install_dir);
     let melonloader = is_melonloader_installed(&install_dir);
 
-    // If both somehow installed, prefer BepInEx for the mods folder
     let (mods_folder, mods) = if bepinex {
         let dir = bepinex_plugins_dir(&install_dir);
         (Some(dir.to_string_lossy().to_string()), list_mods(&dir))
@@ -152,12 +147,10 @@ pub fn install_bepinex(app: AppHandle, install_dir: String) -> Result<(), String
 
 #[tauri::command]
 pub fn uninstall_bepinex(install_dir: String) -> Result<(), String> {
-    // Remove BepInEx folder
     let bepinex_dir = p(&install_dir, "BepInEx");
     if bepinex_dir.exists() {
         fs::remove_dir_all(&bepinex_dir).map_err(|e| e.to_string())?;
     }
-    // Remove hook DLLs and config files BepInEx places at game root
     for file in &["winhttp.dll", "doorstop_config.ini", ".doorstop_version", "changelog.txt"] {
         let path = p(&install_dir, file);
         if path.exists() { let _ = fs::remove_file(path); }
@@ -169,12 +162,9 @@ pub fn uninstall_bepinex(install_dir: String) -> Result<(), String> {
 pub fn install_melonloader(app: AppHandle, install_dir: String) -> Result<(), String> {
     emit_log(&app, "info", "Fetching MelonLoader releases from GitHub...");
 
-    // Use /releases list — MelonLoader ships as pre-releases so /latest often misses them
     let releases = fetch_json("https://api.github.com/repos/LavaGang/MelonLoader/releases?per_page=10")?;
     let releases_arr = releases.as_array().ok_or("Unexpected response from GitHub")?;
 
-    // Find the first non-draft release that has MelonLoader.x64.zip
-    // We use the zip directly — the GUI installer has no reliable silent CLI mode
     let (asset_url, version) = releases_arr.iter()
         .filter(|r| !r["draft"].as_bool().unwrap_or(false))
         .find_map(|r| {
@@ -207,8 +197,6 @@ pub fn install_melonloader(app: AppHandle, install_dir: String) -> Result<(), St
         }
     }
 
-    // Pre-create Mods/ and Plugins/ — MelonLoader creates these on first game launch
-    // but we want them visible immediately in the panel
     fs::create_dir_all(melonloader_mods_dir(&install_dir)).map_err(|e| e.to_string())?;
     fs::create_dir_all(p(&install_dir, "Plugins")).map_err(|e| e.to_string())?;
 
@@ -218,12 +206,10 @@ pub fn install_melonloader(app: AppHandle, install_dir: String) -> Result<(), St
 
 #[tauri::command]
 pub fn uninstall_melonloader(install_dir: String) -> Result<(), String> {
-    // Remove MelonLoader folder
     let ml_dir = p(&install_dir, "MelonLoader");
     if ml_dir.exists() {
         fs::remove_dir_all(&ml_dir).map_err(|e| e.to_string())?;
     }
-    // Remove hook files MelonLoader places at game root
     for file in &["version.dll", "dobby.dll"] {
         let path = p(&install_dir, file);
         if path.exists() { let _ = fs::remove_file(path); }

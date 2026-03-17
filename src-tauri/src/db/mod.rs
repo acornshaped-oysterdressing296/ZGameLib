@@ -2,9 +2,9 @@ pub mod schema;
 pub mod queries;
 
 use rusqlite::Connection;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-pub struct DbState(pub Mutex<Connection>);
+pub struct DbState(pub Arc<Mutex<Connection>>);
 
 pub fn init_db() -> anyhow::Result<Connection> {
     let data_dir = dirs::data_local_dir()
