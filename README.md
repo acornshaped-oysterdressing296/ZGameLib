@@ -855,13 +855,6 @@ Rust source changes trigger a full backend recompile. Frontend changes hot-reloa
 
 ### Production Build
 
-```powershell
-# Recommended — use the included build script
-.\build-release.ps1
-```
-
-Or manually:
-
 ```bash
 npx tauri build
 ```
