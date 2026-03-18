@@ -9,7 +9,16 @@ interface Filters {
   tags: string[];
   dateAddedFrom: string | null;
   dateAddedTo: string | null;
+  hasCover: boolean | null;
 }
+
+export interface SavedFilter {
+  id: string;
+  name: string;
+  filters: Filters;
+}
+
+const SAVED_FILTERS_KEY = "zgamelib-saved-filters";
 
 interface GameStore {
   games: Game[];
@@ -41,6 +50,14 @@ interface GameStore {
   hideGames: (ids: string[]) => void;
   toggleShowHidden: () => void;
   restoreAllHidden: () => void;
+
+  savedFilters: SavedFilter[];
+  saveCurrentFilter: (name: string) => void;
+  deleteSavedFilter: (id: string) => void;
+  applySavedFilter: (saved: SavedFilter) => void;
+
+  searchScope: "name" | "all";
+  setSearchScope: (scope: "name" | "all") => void;
 }
 
 const defaultFilters: Filters = {
@@ -51,6 +68,7 @@ const defaultFilters: Filters = {
   tags: [],
   dateAddedFrom: null,
   dateAddedTo: null,
+  hasCover: null,
 };
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -85,4 +103,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
   hideGames: (ids) => set((s) => ({ hiddenIds: [...new Set([...s.hiddenIds, ...ids])] })),
   toggleShowHidden: () => set((s) => ({ showHidden: !s.showHidden })),
   restoreAllHidden: () => set({ hiddenIds: [], showHidden: false }),
+
+  savedFilters: (() => {
+    try { return JSON.parse(localStorage.getItem(SAVED_FILTERS_KEY) ?? "[]") as SavedFilter[]; } catch { return []; }
+  })(),
+  saveCurrentFilter: (name) => set((s) => {
+    const entry: SavedFilter = { id: crypto.randomUUID(), name, filters: { ...s.filters } };
+    const next = [...s.savedFilters, entry];
+    try { localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(next)); } catch {}
+    return { savedFilters: next };
+  }),
+  deleteSavedFilter: (id) => set((s) => {
+    const next = s.savedFilters.filter((f) => f.id !== id);
+    try { localStorage.setItem(SAVED_FILTERS_KEY, JSON.stringify(next)); } catch {}
+    return { savedFilters: next };
+  }),
+  applySavedFilter: (saved) => set({ filters: { ...saved.filters } }),
+
+  searchScope: "name",
+  setSearchScope: (searchScope) => set({ searchScope }),
 }));

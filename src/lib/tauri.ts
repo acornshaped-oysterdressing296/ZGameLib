@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Game, Note, CreateGamePayload, UpdateGamePayload, ScanResult, AppSettings, ImportResult, CoverCandidate, UpdateInfo, ModLoaderStatus, ModInfo } from "./types";
+import type { Game, Note, Session, CreateGamePayload, UpdateGamePayload, ScanResult, AppSettings, ImportResult, FetchCoversResult, CoverCandidate, UpdateInfo, ModLoaderStatus, ModInfo, HltbData } from "./types";
 
 export const api = {
   getAllGames: () => invoke<Game[]>("get_all_games"),
@@ -7,10 +7,16 @@ export const api = {
   createGame: (payload: CreateGamePayload) => invoke<Game>("create_game", { payload }),
   updateGame: (payload: UpdateGamePayload) => invoke<Game>("update_game", { payload }),
   deleteGame: (id: string) => invoke<void>("delete_game", { id }),
+  permanentDeleteGame: (id: string) => invoke<void>("permanent_delete_game", { id }),
+  restoreGame: (id: string) => invoke<void>("restore_game", { id }),
+  purgeTrash: () => invoke<number>("purge_trash"),
+  getTrashedGames: () => invoke<Game[]>("get_trashed_games"),
   toggleFavorite: (id: string) => invoke<boolean>("toggle_favorite", { id }),
+  togglePinned: (id: string) => invoke<boolean>("toggle_pinned", { id }),
   checkExeHealth: (id: string) => invoke<boolean>("check_exe_health", { id }),
 
   getNotes: (gameId: string) => invoke<Note[]>("get_notes", { gameId }),
+  getSessions: (gameId: string) => invoke<Session[]>("get_sessions", { gameId }),
   createNote: (gameId: string, content: string) => invoke<Note>("create_note", { gameId, content }),
   updateNote: (id: string, content: string) => invoke<Note>("update_note", { id, content }),
   deleteNote: (id: string) => invoke<void>("delete_note", { id }),
@@ -26,6 +32,7 @@ export const api = {
   readImageBase64: (filePath: string) => invoke<string>("read_image_base64", { filePath }),
   fetchUrlAsBase64: (url: string) => invoke<string>("fetch_url_as_base64", { url }),
   searchGameCovers: (query: string) => invoke<CoverCandidate[]>("search_game_covers", { query }),
+  fetchMissingCovers: () => invoke<FetchCoversResult>("fetch_missing_covers"),
   getGameScreenshots: (steamAppId: string) => invoke<string[]>("get_game_screenshots", { steamAppId }),
 
   launchGame: (id: string) => invoke<void>("launch_game", { id }),
@@ -36,10 +43,13 @@ export const api = {
   getSettings: () => invoke<AppSettings>("get_settings"),
   saveSettings: (settings: AppSettings) => invoke<void>("save_settings", { settings }),
   exportLibrary: () => invoke<string>("export_library"),
+  exportLibraryCsv: () => invoke<string>("export_library_csv"),
+  exportGamesByIds: (ids: string[]) => invoke<string>("export_games_by_ids", { ids }),
   importLibrary: (path: string) => invoke<ImportResult>("import_library", { path }),
   saveFile: (path: string, content: string) => invoke<void>("save_file", { path, content }),
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update", { ts: Date.now() }),
   openUrl: (url: string) => invoke<void>("open_url", { url }),
+  isPortableMode: () => invoke<boolean>("is_portable_mode"),
 
   checkModloaderStatus: (installDir: string) => invoke<ModLoaderStatus>("check_modloader_status", { installDir }),
   installBepinex: (installDir: string) => invoke<void>("install_bepinex", { installDir }),
@@ -49,4 +59,7 @@ export const api = {
   openModsFolder: (installDir: string) => invoke<void>("open_mods_folder", { installDir }),
   installMod: (installDir: string, sourcePath: string) => invoke<ModInfo>("install_mod", { installDir, sourcePath }),
   deleteMod: (installDir: string, fileName: string) => invoke<void>("delete_mod", { installDir, fileName }),
+
+  reorderGames: (ids: string[]) => invoke<void>("reorder_games", { ids }),
+  fetchHltbData: (gameId: string, gameName: string) => invoke<HltbData | null>("fetch_hltb_data", { gameId, gameName }),
 };

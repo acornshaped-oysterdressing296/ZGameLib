@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { cn, formatPlaytime, PLATFORM_COLORS, COVER_PLACEHOLDER } from "@/lib/utils";
+import { cn, formatPlaytime, COVER_PLACEHOLDER } from "@/lib/utils";
 import { useUIStore } from "@/store/useUIStore";
 import { useCover } from "@/hooks/useCover";
 import type { Game } from "@/lib/types";
@@ -7,6 +7,7 @@ import { useGameStore } from "@/store/useGameStore";
 import { useGames } from "@/hooks/useGames";
 import { api } from "@/lib/tauri";
 import Badge from "@/components/ui/Badge";
+import PlatformBadge from "@/components/ui/PlatformBadge";
 import GameContextMenu from "@/components/ui/GameContextMenu";
 import { HeartIcon, PlayIcon, FolderIcon, StarIcon } from "@/components/ui/Icons";
 
@@ -38,15 +39,12 @@ export default function GameListRow({ game }: { game: Game }) {
         />
       </div>
 
-      {/* Name + status */}
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-medium text-slate-200 truncate group-hover:text-white transition-colors">
           {game.name}
         </p>
         <div className="flex items-center gap-2 mt-0.5">
-          <Badge className={cn("text-[10px]", PLATFORM_COLORS[game.platform])}>
-            {game.platform}
-          </Badge>
+          <PlatformBadge platform={game.platform} />
           {game.status !== "none" && (() => {
             const sc = customStatuses.find(s => s.key === game.status);
             return sc ? (
@@ -59,19 +57,16 @@ export default function GameListRow({ game }: { game: Game }) {
         </div>
       </div>
 
-      {/* Tags */}
       <div className="hidden lg:flex items-center gap-1 min-w-0 max-w-[160px] flex-wrap">
         {game.tags.slice(0, 3).map((t) => (
           <Badge key={t} className="text-[10px]">{t}</Badge>
         ))}
       </div>
 
-      {/* Playtime */}
       <span className="hidden md:block text-[12px] text-slate-600 w-20 text-right shrink-0 tabular-nums">
         {formatPlaytime(game.playtime_mins)}
       </span>
 
-      {/* Rating */}
       <div className="flex items-center gap-1 w-14 justify-end shrink-0">
         {game.rating !== null ? (
           <>
@@ -83,7 +78,6 @@ export default function GameListRow({ game }: { game: Game }) {
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
         <motion.button
           whileTap={{ scale: 0.85 }}
@@ -102,7 +96,7 @@ export default function GameListRow({ game }: { game: Game }) {
             try {
               if (game.platform === "steam" && game.steam_app_id) await api.launchSteamGame(game.steam_app_id, game.id);
               else await api.launchGame(game.id);
-            } catch {}
+            } catch (e: any) { addToast(e?.message ?? "Failed to launch game", "error"); }
           }}
           className="btn-icon w-7 h-7 hover:text-cyan-400"
         >
@@ -110,7 +104,7 @@ export default function GameListRow({ game }: { game: Game }) {
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.85 }}
-          onClick={async (e) => { e.stopPropagation(); try { await api.openGameFolder(game.id); } catch {} }}
+          onClick={async (e) => { e.stopPropagation(); try { await api.openGameFolder(game.id); } catch (e: any) { addToast(e?.message ?? "Failed to open folder", "error"); } }}
           className="btn-icon w-7 h-7 hover:text-accent-400"
         >
           <FolderIcon size={12} />

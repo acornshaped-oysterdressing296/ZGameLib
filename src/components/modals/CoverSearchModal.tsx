@@ -21,11 +21,13 @@ export default function CoverSearchModal({ gameId, gameName, currentCoverPath, o
   const [results, setResults] = useState<CoverCandidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const fetchCache = useRef<Map<string, string>>(new Map());
 
   const search = async () => {
     if (!query.trim()) return;
+    setHasSearched(true);
     setLoading(true);
     setResults([]);
     try {
@@ -126,9 +128,14 @@ export default function CoverSearchModal({ gameId, gameName, currentCoverPath, o
           {results.length === 0 && !loading && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <SearchIcon size={28} className="text-slate-700 mb-3" />
-              <p className="text-[13px] text-slate-600">
-                {query !== gameName ? "No results — try a different search" : "Search to find cover art"}
-              </p>
+              {hasSearched ? (
+                <>
+                  <p className="text-[13px] text-slate-500">No covers found for "{query}"</p>
+                  <p className="text-[11px] text-slate-700 mt-1">Try a shorter name or remove subtitles</p>
+                </>
+              ) : (
+                <p className="text-[13px] text-slate-600">Search to find cover art</p>
+              )}
             </div>
           )}
 

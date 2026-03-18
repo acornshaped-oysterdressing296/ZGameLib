@@ -1,22 +1,25 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useGameStore } from "@/store/useGameStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useGames } from "@/hooks/useGames";
 import { useCover, setCoverCache, clearCoverCache } from "@/hooks/useCover";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/tauri";
-import { cn, formatPlaytime, formatDate, PLATFORM_COLORS, COVER_PLACEHOLDER } from "@/lib/utils";
+import { cn, formatPlaytime, formatDate, COVER_PLACEHOLDER } from "@/lib/utils";
 import StarRating from "@/components/ui/StarRating";
 import GameNotes from "./GameNotes";
 import ModLoaderPanel from "./ModLoaderPanel";
 import Badge from "@/components/ui/Badge";
+import PlatformBadge from "@/components/ui/PlatformBadge";
 import CoverSearchModal from "@/components/modals/CoverSearchModal";
 import {
   CloseIcon, HeartIcon, PlayIcon, FolderIcon, TrashIcon,
   CheckIcon, TagIcon, ClockIcon, StarIcon, ImageIcon, SearchIcon,
   CopyIcon, ExternalLinkIcon
 } from "@/components/ui/Icons";
+import type { Session } from "@/lib/types";
 
 export default function GameDetail() {
   const selectedGameId = useGameStore((s) => s.selectedGameId);
@@ -34,20 +37,35 @@ export default function GameDetail() {
   const [descVal, setDescVal] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [showCoverSearch, setShowCoverSearch] = useState(false);
-  const [activeTab, setActiveTab] = useState<"info" | "screenshots" | "mods">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "screenshots" | "mods" | "history">("info");
   const [screenshots, setScreenshots] = useState<string[] | null>(null);
   const [loadingShots, setLoadingShots] = useState(false);
+  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [coverLightbox, setCoverLightbox] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const customStatuses = useUIStore((s) => s.customStatuses);
+  const qc = useQueryClient();
 
-  // Reset tab and screenshots when switching games
+  const flashSaved = useCallback(() => {
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 1800);
+  }, []);
+
   useEffect(() => {
     setActiveTab("info");
     setScreenshots(null);
     setLoadingShots(false);
-  }, [selectedGameId]);
+    setSessions(null);
+    setLoadingSessions(false);
+    setDescExpanded(false);
+    if (selectedGameId) qc.invalidateQueries({ queryKey: ["games"] });
+  }, [selectedGameId, qc]);
 
-  const dummyGame = { id: "", name: "", platform: "custom" as const, cover_path: null, exe_path: null, install_dir: null, description: null, rating: null, status: "none" as const, is_favorite: false, playtime_mins: 0, last_played: null, date_added: "", steam_app_id: null, epic_app_name: null, tags: [], sort_order: 0 };
+  const dummyGame = { id: "", name: "", platform: "custom" as const, cover_path: null, exe_path: null, install_dir: null, description: null, rating: null, status: "none" as const, is_favorite: false, is_pinned: false, playtime_mins: 0, last_played: null, date_added: "", steam_app_id: null, epic_app_name: null, tags: [], sort_order: 0, deleted_at: null, custom_fields: {} as Record<string, string>, hltb_main_mins: null, hltb_extra_mins: null };
   const coverUrl = useCover(game ?? dummyGame);
 
   if (!game) return null;
@@ -81,6 +99,19 @@ export default function GameDetail() {
     } catch (e) { addToast(String(e), "error"); }
   };
 
+  const loadSessions = async () => {
+    if (loadingSessions) return;
+    setLoadingSessions(true);
+    try {
+      const data = await api.getSessions(game.id);
+      setSessions(data);
+    } catch {
+      setSessions([]);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
   const loadScreenshots = async () => {
     if (!game.steam_app_id || loadingShots) return;
     setLoadingShots(true);
@@ -102,12 +133,12 @@ export default function GameDetail() {
   };
 
   const saveName = () => {
-    if (nameVal.trim()) update({ id: game.id, name: nameVal.trim() });
+    if (nameVal.trim()) update({ id: game.id, name: nameVal.trim() }, { onSuccess: flashSaved });
     setEditingName(false);
   };
 
   const saveDesc = () => {
-    update({ id: game.id, description: descVal });
+    update({ id: game.id, description: descVal }, { onSuccess: flashSaved });
     setEditingDesc(false);
   };
 
@@ -132,6 +163,29 @@ export default function GameDetail() {
       />
     )}
     <AnimatePresence>
+      {coverLightbox && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setCoverLightbox(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.9)", backdropFilter: "blur(20px)" }}
+        >
+          <motion.img
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.85, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            src={coverUrl || COVER_PLACEHOLDER}
+            alt={game.name}
+            className="max-h-[85vh] max-w-[60vw] rounded-2xl object-contain shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+    <AnimatePresence>
       {isOpen && (
         <>
           <motion.div
@@ -144,6 +198,7 @@ export default function GameDetail() {
             style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }}
           />
           <motion.div
+            ref={panelRef}
             initial={{ x: "100%", opacity: 0.5 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: "100%", opacity: 0 }}
@@ -155,8 +210,21 @@ export default function GameDetail() {
               borderLeft: "1px solid rgba(255,255,255,0.04)",
               boxShadow: "-20px 0 60px rgba(0,0,0,0.5), 0 0 40px rgb(var(--accent-500) /0.05)",
             }}
+            onKeyDown={(e: React.KeyboardEvent) => {
+              if (e.key !== "Tab") return;
+              const sel = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+              const focusable = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(sel) ?? []).filter((el) => !el.hasAttribute("disabled"));
+              if (!focusable.length) return;
+              const first = focusable[0];
+              const last = focusable[focusable.length - 1];
+              if (e.shiftKey) {
+                if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+              } else {
+                if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+              }
+            }}
           >
-            <div className="relative h-60 shrink-0 overflow-hidden group/cover cursor-pointer" onClick={handleChangeCover}>
+            <div className="relative h-60 shrink-0 overflow-hidden group/cover cursor-pointer" onClick={() => setCoverLightbox(true)}>
               <motion.img
                 initial={{ scale: 1.1 }}
                 animate={{ scale: 1 }}
@@ -172,7 +240,7 @@ export default function GameDetail() {
               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/cover:opacity-100 transition-opacity duration-300 z-10"
                 style={{ background: "rgba(0,0,0,0.5)" }}
               >
-                <div className="flex flex-col items-center gap-3">
+                <div className="flex flex-col items-center gap-3" onClick={(e) => { e.stopPropagation(); handleChangeCover(); }}>
                   <div className="flex items-center gap-2 text-white/80 text-sm font-medium">
                     <ImageIcon size={18} />
                     Change Cover
@@ -195,24 +263,26 @@ export default function GameDetail() {
                 <CloseIcon size={14} />
               </motion.button>
               <div className="absolute top-4 left-4 z-20">
-                <Badge className={PLATFORM_COLORS[game.platform]}>{game.platform}</Badge>
+                <PlatformBadge platform={game.platform} />
               </div>
             </div>
 
             <div
-              className="flex shrink-0 px-6"
+              className="flex shrink-0 px-6 items-center"
               style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
             >
               {[
                 { key: "info" as const, label: "Info" },
-                ...(game.steam_app_id ? [{ key: "screenshots" as const, label: "Screenshots" }] : []),
+                ...(game.steam_app_id ? [{ key: "screenshots" as const, label: screenshots !== null ? `Screenshots (${screenshots.length})` : "Screenshots" }] : []),
                 ...(game.install_dir ? [{ key: "mods" as const, label: "Mods" }] : []),
+                { key: "history" as const, label: sessions !== null ? `History (${sessions.length})` : "History" },
               ].map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => {
                     setActiveTab(tab.key);
                     if (tab.key === "screenshots" && screenshots === null) loadScreenshots();
+                    if (tab.key === "history" && sessions === null) loadSessions();
                   }}
                   className={cn(
                     "px-4 py-3 text-[12px] font-medium border-b-2 transition-all -mb-px",
@@ -224,6 +294,18 @@ export default function GameDetail() {
                   {tab.label}
                 </button>
               ))}
+              <AnimatePresence>
+                {showSaved && (
+                  <motion.span
+                    initial={{ opacity: 0, x: 6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="ml-auto text-[11px] text-emerald-400 font-medium pr-1 shrink-0"
+                  >
+                    Saved ✓
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </div>
 
             {activeTab === "screenshots" && (
@@ -271,6 +353,53 @@ export default function GameDetail() {
               </div>
             )}
 
+            {activeTab === "history" && (
+              <div className="flex-1 overflow-y-auto p-6">
+                {loadingSessions && (
+                  <div className="flex justify-center py-12">
+                    <div className="w-5 h-5 rounded-full border-2 border-accent-500/30 border-t-accent-500 animate-spin" />
+                  </div>
+                )}
+                {!loadingSessions && sessions !== null && sessions.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <ClockIcon size={28} className="text-slate-700 mb-3" />
+                    <p className="text-[13px] text-slate-600">No sessions recorded yet</p>
+                    <p className="text-[11px] text-slate-700 mt-1">Sessions are tracked when you launch games</p>
+                  </div>
+                )}
+                {!loadingSessions && sessions && sessions.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-1">
+                      {sessions.length} session{sessions.length !== 1 ? "s" : ""} recorded
+                    </p>
+                    {sessions.map((s) => (
+                      <div
+                        key={s.id}
+                        className="glass rounded-xl px-4 py-3 flex items-center justify-between"
+                      >
+                        <div>
+                          <p className="text-[12px] text-slate-300 font-medium">
+                            {new Date(s.started_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                          <p className="text-[10px] text-slate-600 mt-0.5">
+                            {new Date(s.started_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <ClockIcon size={11} className="text-accent-500" />
+                          <span className="text-[12px] text-slate-400 font-medium">
+                            {s.duration_mins < 60
+                              ? `${s.duration_mins}m`
+                              : `${Math.floor(s.duration_mins / 60)}h ${s.duration_mins % 60}m`}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === "info" && (
             <div className="flex flex-col gap-5 p-6 flex-1 overflow-y-auto">
               <div className="flex items-start gap-3">
@@ -293,6 +422,27 @@ export default function GameDetail() {
                     {game.name}
                   </h2>
                 )}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={async () => {
+                    try {
+                      const data = await api.fetchHltbData(game.id, game.name);
+                      if (data) {
+                        useGameStore.getState().updateGame({ ...game, hltb_main_mins: data.main_mins, hltb_extra_mins: data.extra_mins });
+                        addToast("HLTB data fetched", "success");
+                      } else {
+                        addToast("No HLTB data found", "info");
+                      }
+                    } catch {
+                      addToast("Could not fetch HLTB data", "error");
+                    }
+                  }}
+                  className="shrink-0 p-2 rounded-xl text-slate-600 hover:text-accent-400 glass transition-all"
+                  title="Fetch HowLongToBeat estimate"
+                >
+                  <ClockIcon size={14} />
+                </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.85 }}
@@ -352,9 +502,21 @@ export default function GameDetail() {
                 ))}
               </div>
 
+              {(game.hltb_main_mins || game.hltb_extra_mins) && (
+                <div className="col-span-2 flex items-center gap-3 py-2 px-3 rounded-xl glass">
+                  <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-[0.12em]">HLTB</span>
+                  {game.hltb_main_mins && (
+                    <span className="text-[12px] text-slate-400">Main: <span className="text-slate-200 font-medium">{Math.round(game.hltb_main_mins / 60 * 10) / 10}h</span></span>
+                  )}
+                  {game.hltb_extra_mins && (
+                    <span className="text-[12px] text-slate-400 ml-2">+Extra: <span className="text-slate-200 font-medium">{Math.round(game.hltb_extra_mins / 60 * 10) / 10}h</span></span>
+                  )}
+                </div>
+              )}
+
               <div>
                 <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-2.5">Your Rating</p>
-                <StarRating value={game.rating} onChange={(v) => update({ id: game.id, rating: v })} size="md" />
+                <StarRating value={game.rating} onChange={(v) => update({ id: game.id, rating: v }, { onSuccess: flashSaved })} size="md" />
               </div>
 
               <div>
@@ -439,17 +601,71 @@ export default function GameDetail() {
                     </div>
                   </div>
                 ) : (
-                  <motion.p
-                    whileHover={{ borderColor: "rgb(var(--accent-500) /0.2)" }}
-                    onClick={() => { setDescVal(game.description ?? ""); setEditingDesc(true); }}
-                    className={cn(
-                      "text-[13px] cursor-text leading-relaxed rounded-xl p-4 glass transition-all duration-300 min-h-[64px]",
-                      game.description ? "text-slate-300" : "text-slate-700 italic"
+                  <div>
+                    <motion.p
+                      whileHover={{ borderColor: "rgb(var(--accent-500) /0.2)" }}
+                      onClick={() => { setDescVal(game.description ?? ""); setEditingDesc(true); }}
+                      className={cn(
+                        "text-[13px] cursor-text leading-relaxed rounded-xl p-4 glass transition-all duration-300 min-h-[64px]",
+                        game.description ? "text-slate-300" : "text-slate-700 italic"
+                      )}
+                    >
+                      {game.description
+                        ? (!descExpanded && game.description.length > 200
+                            ? game.description.slice(0, 200) + "…"
+                            : game.description)
+                        : "Click to add a description..."}
+                    </motion.p>
+                    {game.description && game.description.length > 200 && (
+                      <button
+                        onClick={() => setDescExpanded((v) => !v)}
+                        className="mt-1 text-[11px] text-accent-400 hover:text-accent-300 transition-colors"
+                      >
+                        {descExpanded ? "Show less" : "Show more"}
+                      </button>
                     )}
-                  >
-                    {game.description || "Click to add a description..."}
-                  </motion.p>
+                  </div>
                 )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-[0.15em]">Custom Fields</span>
+                  <button
+                    onClick={() => {
+                      const key = prompt("Field name:");
+                      if (!key?.trim()) return;
+                      update({ id: game.id, custom_fields: { ...game.custom_fields, [key.trim()]: "" } });
+                    }}
+                    className="text-[10px] text-slate-600 hover:text-accent-400 transition-colors"
+                  >
+                    + Add
+                  </button>
+                </div>
+                {Object.entries(game.custom_fields).map(([key, val]) => (
+                  <div key={key} className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[11px] text-slate-500 w-24 shrink-0 truncate">{key}</span>
+                    <input
+                      defaultValue={val}
+                      onBlur={(e) => {
+                        if (e.target.value !== val) {
+                          update({ id: game.id, custom_fields: { ...game.custom_fields, [key]: e.target.value } });
+                        }
+                      }}
+                      className="input-glass text-[11px] py-1 flex-1"
+                    />
+                    <button
+                      onClick={() => {
+                        const next = { ...game.custom_fields };
+                        delete next[key];
+                        update({ id: game.id, custom_fields: next });
+                      }}
+                      className="text-slate-700 hover:text-red-400 transition-colors shrink-0"
+                    >
+                      <TrashIcon size={11} />
+                    </button>
+                  </div>
+                ))}
               </div>
 
               <GameNotes gameId={game.id} />

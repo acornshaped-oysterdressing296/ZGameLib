@@ -38,7 +38,7 @@ export function useGames() {
     mutationFn: (id: string) => api.deleteGame(id),
     onSuccess: (_, id) => {
       removeFromStore(id);
-      addToast("Game removed from library");
+      addToast("Game moved to trash", "info");
     },
     onError: (e) => addToast(String(e), "error"),
   });
@@ -61,12 +61,22 @@ export function useGames() {
     },
   });
 
+  const togglePinnedMutation = useMutation({
+    mutationFn: (id: string) => api.togglePinned(id),
+    onSuccess: (isPinned, id) => {
+      const games = useGameStore.getState().games;
+      const game = games.find((g) => g.id === id);
+      if (game) updateGameInStore({ ...game, is_pinned: isPinned });
+    },
+  });
+
   return {
     isLoading,
     update: updateMutation.mutate,
     remove: deleteMutation.mutate,
     create: createMutation.mutate,
     toggleFavorite: toggleFavMutation.mutate,
+    togglePinned: togglePinnedMutation.mutate,
   };
 }
 
@@ -101,6 +111,7 @@ export function useScan() {
 export function useFilteredGames() {
   const games = useGameStore((s) => s.games);
   const search = useGameStore((s) => s.search);
+  const searchScope = useGameStore((s) => s.searchScope);
   const sortKey = useGameStore((s) => s.sortKey);
   const sortAsc = useGameStore((s) => s.sortAsc);
   const filters = useGameStore((s) => s.filters);
@@ -116,7 +127,14 @@ export function useFilteredGames() {
 
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter((g) => g.name.toLowerCase().includes(q));
+      if (searchScope === "all") {
+        result = result.filter((g) =>
+          g.name.toLowerCase().includes(q) ||
+          (g.description?.toLowerCase().includes(q) ?? false)
+        );
+      } else {
+        result = result.filter((g) => g.name.toLowerCase().includes(q));
+      }
     }
     if (filters.platform !== "all") result = result.filter((g) => g.platform === filters.platform);
     if (filters.status !== "all") result = result.filter((g) => g.status === filters.status);
@@ -125,6 +143,8 @@ export function useFilteredGames() {
     if (filters.tags.length > 0) result = result.filter((g) => filters.tags.every((t) => g.tags.includes(t)));
     if (filters.dateAddedFrom) result = result.filter((g) => g.date_added >= filters.dateAddedFrom!);
     if (filters.dateAddedTo) result = result.filter((g) => g.date_added <= filters.dateAddedTo!);
+    if (filters.hasCover === true) result = result.filter((g) => g.cover_path !== null);
+    if (filters.hasCover === false) result = result.filter((g) => g.cover_path === null);
 
     result.sort((a, b) => {
       let av: number | string = "";
@@ -135,6 +155,7 @@ export function useFilteredGames() {
         case "last_played": av = a.last_played ?? ""; bv = b.last_played ?? ""; break;
         case "date_added": av = a.date_added; bv = b.date_added; break;
         case "playtime_mins": av = a.playtime_mins; bv = b.playtime_mins; break;
+        case "sort_order": av = a.sort_order; bv = b.sort_order; break;
       }
       if (av < bv) return sortAsc ? -1 : 1;
       if (av > bv) return sortAsc ? 1 : -1;
@@ -142,5 +163,5 @@ export function useFilteredGames() {
     });
 
     return result;
-  }, [games, search, sortKey, sortAsc, filters, hiddenIds, showHidden]);
+  }, [games, search, searchScope, sortKey, sortAsc, filters, hiddenIds, showHidden]);
 }

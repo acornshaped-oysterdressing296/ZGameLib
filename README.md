@@ -10,7 +10,7 @@ Track, organize, rate and launch every game you own — Steam, Epic, GOG, and cu
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-7c3aed?style=flat-square" alt="MIT License"/></a>
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows" alt="Windows"/>
-  <img src="https://img.shields.io/badge/Version-0.5.0-22c55e?style=flat-square" alt="v0.5.0"/>
+  <img src="https://img.shields.io/badge/Version-0.6.0-22c55e?style=flat-square" alt="v0.6.0"/>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Built%20with-Tauri%202-FFC131?style=flat-square" alt="Tauri 2"/></a>
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react" alt="React 18"/>
   <img src="https://img.shields.io/badge/Rust-backend-CE422B?style=flat-square&logo=rust" alt="Rust"/>
@@ -18,8 +18,8 @@ Track, organize, rate and launch every game you own — Steam, Epic, GOG, and cu
 
 <p>
   <a href="https://zsync.eu/zgamelib/"><strong>🌐 Website</strong></a> &nbsp;·&nbsp;
-  <a href="https://zsync.eu/zgamelib/app/ZGameLib_0.5.0_x64_en-US.msi"><strong>⬇ Download MSI</strong></a> &nbsp;·&nbsp;
-  <a href="https://zsync.eu/zgamelib/app/ZGameLib_0.5.0_x64-setup.exe"><strong>⬇ Download EXE</strong></a> &nbsp;·&nbsp;
+  <a href="https://zsync.eu/zgamelib/app/ZGameLib_0.6.0_x64_en-US.msi"><strong>⬇ Download MSI</strong></a> &nbsp;·&nbsp;
+  <a href="https://zsync.eu/zgamelib/app/ZGameLib_0.6.0_x64-setup.exe"><strong>⬇ Download EXE</strong></a> &nbsp;·&nbsp;
   <a href="https://github.com/TheHolyOneZ/ZGameLib"><strong>GitHub</strong></a>
 </p>
 
@@ -43,8 +43,8 @@ Track, organize, rate and launch every game you own — Steam, Epic, GOG, and cu
 
 | Installer | Format | Notes |
 |-----------|--------|-------|
-| [ZGameLib_0.5.0_x64_en-US.msi](https://zsync.eu/zgamelib/app/ZGameLib_0.5.0_x64_en-US.msi) | `.msi` | **Recommended** — Windows Installer |
-| [ZGameLib_0.5.0_x64-setup.exe](https://zsync.eu/zgamelib/app/ZGameLib_0.5.0_x64-setup.exe) | `.exe` | NSIS alternative installer |
+| [ZGameLib_0.6.0_x64_en-US.msi](https://zsync.eu/zgamelib/app/ZGameLib_0.6.0_x64_en-US.msi) | `.msi` | **Recommended** — Windows Installer |
+| [ZGameLib_0.6.0_x64-setup.exe](https://zsync.eu/zgamelib/app/ZGameLib_0.6.0_x64-setup.exe) | `.exe` | NSIS alternative installer |
 
 > **Windows SmartScreen:** On first launch you may see *"Windows protected your PC"* — click **More info → Run anyway**. This is expected for unsigned indie apps.
 
@@ -107,27 +107,36 @@ Track, organize, rate and launch every game you own — Steam, Epic, GOG, and cu
 **Views & Sorting**
 - **Grid view** — configurable 3–6 columns
 - **Dense list view** — compact rows with all info
-- Sort by: name · rating · last played · date added · playtime
+- Sort by: name · rating · last played · date added · playtime · **custom order**
 - Ascending / descending toggle
+- **Drag-and-drop reordering** — select "Custom Order" sort to drag cards into any order; persisted to the database
 
 **Filtering**
 - Filter by platform: All / Steam / Epic / GOG / Custom
 - Filter by status (any custom status)
+- Filter by cover art: Has Cover / Missing Cover (sidebar, with counts)
 - Favorites-only toggle
 - Minimum rating slider
 - Tag-based filtering
+- Date range filtering (date added from/to)
 
 **Per-Page Search Bar**
 - Contextual to each page (Library, Favorites, Recently Played)
 - Live result counter
 - <kbd>/</kbd> hotkey focuses search from anywhere
+- Scope toggle inside search input — name only or name + description
 - "No games match" empty state with one-click **Clear Filters**
-- Date range filtering (date added from/to)
+- Scroll-to-top floating button after 400 px of scroll
 
 **Context Menu & Health**
-- **Right-click** any game card or list row → Play · Open Folder · Favorite · Copy Name · View Details
+- **Right-click** any game card or list row → Play · Open Folder · Favorite · Pin · Copy Name · View Details · **Delete**
 - **Exe health badge** — amber warning icon on cards when the executable is missing
 - Loading skeleton grid while library loads
+
+**Weekly Playtime Goal**
+- Set a weekly playtime target in hours at the top of the Library page
+- Animated progress bar with current week's playtime
+- "Goal reached! 🎉" state; persists across sessions
 
 </td>
 </tr>
@@ -185,28 +194,31 @@ A slide-in drawer (500 px wide) that opens without navigating away from your lib
 <td valign="top">
 
 **Info Tab**
-- Edit game name inline
+- Edit game name inline (shows "Saved ✓" flash on save)
 - Toggle favorite (heart icon)
 - Quick-action buttons: Play · Open Folder · Delete
-- Stats grid: total playtime · rating · date added · last played
+- Stats grid: total playtime · rating · date added · last played · **HLTB main story hours · completionist hours**
 - **10-star rating** (interactive, 1–10 scale; fire icon 🔥 appears when rating ≥ 8)
+- **Quick rate** — 10-button rating row appears on game card hover (no need to open the panel)
 - **Custom status buttons** — your defined statuses, color-coded
 - **Tags** — add/remove inline; comma or Enter to confirm
-- **Description** — freeform textarea, editable inline
+- **Description** — freeform textarea, editable inline; truncated at 200 chars with "Show more / Show less"
+- **Custom fields** — add arbitrary key/value metadata per game; stored per-game in the database
+- **Time-to-beat** — click the clock icon to fetch HowLongToBeat data; main story and completionist hours shown in the stats grid; cached in DB
 - **Notes** section (see below)
 
 </td>
 <td valign="top">
 
-**Screenshots Tab**
+**Screenshots Tab** *(label shows count, e.g. "Screenshots (6)")*
 - Fetches all Steam screenshots for the game
 - Masonry grid layout
 - Full-screen lightbox
-- Per-screenshot actions:
-  - 📋 Copy Path
-  - 📂 Open File
-  - 🗂 Open Folder
-  - ⬇ Export / Download
+- Per-screenshot actions: Copy Path · Open File · Open Folder · Export
+
+**History Tab** *(label shows count, e.g. "History (3)")*
+- Lists the last 50 play sessions for the game
+- Shows start time, duration, and date
 
 **Mods Tab**
 - Appears when an install directory is configured
@@ -225,10 +237,10 @@ A slide-in drawer (500 px wide) that opens without navigating away from your lib
 - New note textarea at the bottom
 - <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to save a new note
 
-**Cover Search**
-- Opens `CoverSearchModal` — search Steam's app database by name
-- Browse portrait cover results in a 4-column grid
-- Click any result to apply instantly
+**Cover**
+- Click the cover image → full-size **lightbox overlay** with spring animation
+- Hover the cover → "Change Cover" button appears for replacing it
+- Cover search: browse Steam's portrait database by name, click to apply instantly
 
 ---
 
@@ -410,9 +422,17 @@ All themes are implemented as **CSS custom properties** (`--accent-200` through 
 
 - All data lives in **SQLite** at `%APPDATA%\zgamelib\zgamelib.db` — no external services
 - **Export library** — full JSON dump: ratings, tags, notes, playtime, cover paths, statuses
+- **Export as CSV** — spreadsheet-compatible export with proper quoting (id, name, platform, status, rating, playtime, date, tags)
+- **Export Filtered** — export only the currently visible/filtered subset as JSON; button shows active count
 - **Import / restore** — JSON file re-import; skips exact duplicates
+- **Trash bin** — deleted games are soft-deleted and recoverable from Settings → Data; permanent delete available
+- **Portable mode** — by default the database lives in `%APPDATA%\zgamelib\`. To enable portable mode (e.g. for a USB drive):
+  1. Go to the folder containing `zgamelib.exe`
+  2. Create an empty file named `portable.flag` there (right-click → New → Text Document → rename it, or run `New-Item portable.flag` in PowerShell)
+  3. Launch the app — the database and settings will now be stored in the same folder as the exe
+  > Make sure the file is named exactly `portable.flag` with no `.txt` extension. If Windows is hiding extensions, check via View → Show → File name extensions.
 - **Zero telemetry. Zero accounts. Zero cloud.**
-- The only network calls made are: cover art fetching (Steam CDN / GOG / Steam SearchApps), mod installer downloads from GitHub, and the update check against `zsync.eu` — all explicitly user-initiated or one-time at startup
+- The only network calls made are: cover art fetching (Steam CDN / GOG / Steam SearchApps), HLTB lookup (on user request), mod installer downloads from GitHub, and the update check against `zsync.eu` — all explicitly user-initiated or one-time at startup
 
 ---
 
@@ -421,6 +441,10 @@ All themes are implemented as **CSS custom properties** (`--accent-200` through 
 | Key | Action |
 |-----|--------|
 | <kbd>/</kbd> | Focus the search bar on any page |
+| <kbd>N</kbd> | Open the Add Game modal |
+| <kbd>F</kbd> | Toggle favorite on the currently open game |
+| <kbd>Escape</kbd> | Close the detail panel or any overlay |
+| <kbd>?</kbd> | Show / hide the keyboard shortcuts help overlay |
 | <kbd>Ctrl</kbd> + <kbd>Enter</kbd> | Save a new note in the notes editor |
 
 ---
@@ -557,7 +581,7 @@ All themes are implemented as **CSS custom properties** (`--accent-200` through 
                            │
 ┌──────────────────────────▼───────────────────────────────────┐
 │           SQLite  (%APPDATA%\zgamelib\zgamelib.db)            │
-│           tables:  games  ·  notes  ·  settings              │
+│           tables:  games  ·  notes  ·  settings  ·  sessions │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -644,6 +668,11 @@ setPendingUpdate
 | `epic_app_name` | TEXT | UNIQUE | Epic catalog item ID |
 | `tags` | TEXT | | JSON array of strings |
 | `sort_order` | INTEGER | | Manual drag-sort order |
+| `deleted_at` | TEXT | | ISO 8601 — set when soft-deleted; `NULL` = active |
+| `is_pinned` | INTEGER | NOT NULL DEFAULT 0 | Pinned to top of library |
+| `custom_fields` | TEXT | NOT NULL DEFAULT '{}' | JSON map of user-defined key/value metadata |
+| `hltb_main_mins` | INTEGER | | HowLongToBeat main story time in minutes |
+| `hltb_extra_mins` | INTEGER | | HowLongToBeat completionist time in minutes |
 
 Indexes: `platform` · `is_favorite` · `status` · `last_played`
 
@@ -656,6 +685,18 @@ Indexes: `platform` · `is_favorite` · `status` · `last_played`
 | `content` | TEXT | Note body |
 | `created_at` | TEXT | ISO 8601 |
 | `updated_at` | TEXT | ISO 8601 |
+
+Index: `game_id`
+
+### `sessions`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT PK | UUID |
+| `game_id` | TEXT FK | References `games.id` |
+| `started_at` | TEXT | ISO 8601 — session start time |
+| `ended_at` | TEXT | ISO 8601 — session end time |
+| `duration_mins` | INTEGER | Rounded minutes played |
 
 Index: `game_id`
 
@@ -728,6 +769,7 @@ Walks up to **6 directory levels deep** looking for executables using this prior
 | GOG Product API | Cover art + metadata for GOG games | Auto on scan |
 | GitHub Releases API | Latest BepInEx x64 ZIP download | User clicks Install BepInEx |
 | GitHub Releases API | Latest MelonLoader x64 ZIP download | User clicks Install MelonLoader |
+| HowLongToBeat | Time-to-beat estimates (main story + completionist) | User clicks clock icon in Game Detail |
 | Tauri Updater | Checks `https://zsync.eu/zgamelib/update.json` with Minisign public key | App startup |
 
 ---
@@ -768,6 +810,7 @@ ZGameLib/
 │   │   │   ├── GameCard.tsx        # 3:4 cover, overlay Play/Fav/Folder, platform badge, 🔥 on ≥8
 │   │   │   ├── GameGrid.tsx        # Responsive CSS grid, handles both view modes
 │   │   │   ├── GameListRow.tsx     # Compact row: thumbnail, name+status, tags, playtime, rating
+│   │   │   ├── PinnedRow.tsx       # Horizontal strip of pinned games shown above the main grid
 │   │   │   └── RecentlyPlayed.tsx  # Horizontal scrollable carousel (max 12 games)
 │   │   │
 │   │   ├── game/
@@ -782,8 +825,10 @@ ZGameLib/
 │   │   │
 │   │   └── ui/
 │   │       ├── Badge.tsx           # Platform / tag pill badges
+│   │       ├── PlatformBadge.tsx   # Icon + label badge for Steam / Epic / GOG / Custom
 │   │       ├── StarRating.tsx      # Interactive 10-star rating widget
 │   │       ├── Icons.tsx           # 40+ custom SVG icons
+│   │       ├── GameContextMenu.tsx # Right-click portal menu: Play, Folder, Fav, Pin, Copy, Details
 │   │       ├── Toast.tsx           # Bottom-right toasts (3.5 s auto-dismiss, max visible)
 │   │       ├── LogPanel.tsx        # Right-side scan log (max 500 entries, auto-scroll)
 │   │       ├── EmptyState.tsx      # Centered placeholder with action button
@@ -791,7 +836,7 @@ ZGameLib/
 │   │       └── ErrorBoundary.tsx   # React error boundary with fallback UI
 │   │
 │   ├── store/
-│   │   ├── useGameStore.ts         # Games, filters, sort, view, hiddenIds (Zustand)
+│   │   ├── useGameStore.ts         # Games, filters, sort, view, hiddenIds, savedFilters (Zustand)
 │   │   └── useUIStore.ts           # Toasts, modals, custom statuses, logs, update (Zustand)
 │   │
 │   ├── hooks/
@@ -814,9 +859,9 @@ ZGameLib/
         ├── models.rs               # Game, Note, AppSettings, CoverCandidate structs
         │
         ├── commands/
-        │   ├── games.rs            # get/create/update/delete game; get/create/update/delete note
-        │   ├── scanner.rs          # Steam/Epic/GOG/custom scan, cover fetch, icon extraction
-        │   ├── launcher.rs         # Process spawn, playtime tracking, minimize/restore
+        │   ├── games.rs            # CRUD for games, notes, sessions; trash/restore/purge; toggle pin
+        │   ├── scanner.rs          # Steam/Epic/GOG/custom scan, cover fetch, bulk cover auto-fetch
+        │   ├── launcher.rs         # Process spawn, playtime + session tracking, minimize/restore
         │   ├── modloader.rs        # BepInEx + MelonLoader install/uninstall + mod management
         │   └── settings.rs         # get/save settings, export/import library, update check
         │
@@ -855,6 +900,13 @@ Rust source changes trigger a full backend recompile. Frontend changes hot-reloa
 
 ### Production Build
 
+```powershell
+# Recommended — use the included build script
+.\build-release.ps1
+```
+
+Or manually:
+
 ```bash
 npx tauri build
 ```
@@ -863,8 +915,9 @@ Output directory: `src-tauri/target/release/bundle/`
 
 ```
 bundle/
-├── msi/   ZGameLib_0.5.0_x64_en-US.msi
-└── nsis/  ZGameLib_0.5.0_x64-setup.exe
+├── msi/   ZGameLib_0.6.0_x64_en-US.msi
+└── nsis/  ZGameLib_0.6.0_x64-setup.exe
+
 ```
 
 ### Frontend Only

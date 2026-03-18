@@ -96,7 +96,6 @@ export default function Stats() {
     .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
     .slice(0, 5);
 
-  // Rating distribution (1-10)
   const ratingDistribution: { rating: number; count: number }[] = [];
   for (let r = 1; r <= 10; r++) {
     const count = games.filter((g) => g.rating === r).length;
@@ -104,11 +103,10 @@ export default function Stats() {
   }
   const maxRatingCount = Math.max(...ratingDistribution.map((d) => d.count), 1);
 
-  // Completion rate
   const completionRate = totalGames > 0 ? Math.round((completed / totalGames) * 100) : 0;
 
   return (
-    <div className="p-6 max-w-4xl page-enter overflow-y-auto h-full">
+    <div className="p-6 max-w-4xl mx-auto page-enter overflow-y-auto h-full">
       <div className="flex items-center gap-3 mb-8">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center"
           style={{ background: "linear-gradient(135deg, rgb(var(--accent-500) /0.2), rgb(var(--accent-800) /0.15))", border: "1px solid rgb(var(--accent-500) /0.15)" }}>
@@ -120,7 +118,6 @@ export default function Stats() {
         </div>
       </div>
 
-      {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
         <StatCard delay={0} icon={<GamepadIcon size={14} className="text-accent-400" />} label="Total Games" value={totalGames} onClick={goToLibrary()} />
         <StatCard delay={0.05} icon={<ClockIcon size={14} className="text-accent-400" />} label="Total Playtime" value={formatPlaytime(totalMins)} onClick={goToLibrary(() => { setSortKey("playtime_mins"); setSortAsc(false); })} />
@@ -130,7 +127,6 @@ export default function Stats() {
         <StatCard delay={0.25} icon={<StarIcon size={14} className="text-accent-400" />} label="Rated" value={rated.length} sub={`${totalGames > 0 ? Math.round((rated.length / totalGames) * 100) : 0}% of library`} onClick={goToLibrary(() => setFilter("minRating", 1))} />
       </div>
 
-      {/* Platform bars */}
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mb-8">
         <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-4 flex items-center gap-1.5">
           <span className="w-3 h-px bg-slate-800" />
@@ -159,7 +155,6 @@ export default function Stats() {
         </div>
       </motion.div>
 
-      {/* Status breakdown */}
       {Object.keys(statusBreakdown).length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="mb-8">
           <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-4 flex items-center gap-1.5">
@@ -178,7 +173,6 @@ export default function Stats() {
         </motion.div>
       )}
 
-      {/* Rating Distribution */}
       {ratingDistribution.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.55 }} className="mb-8">
           <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-4 flex items-center gap-1.5">
@@ -209,7 +203,6 @@ export default function Stats() {
         </motion.div>
       )}
 
-      {/* Completion Rate Tracker */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.4 }} className="mb-8">
         <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-4 flex items-center gap-1.5">
           <span className="w-3 h-px bg-slate-800" />
@@ -244,7 +237,6 @@ export default function Stats() {
         </div>
       </motion.div>
 
-      {/* Top rated */}
       {topRated.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}>
           <p className="text-[10px] text-slate-600 uppercase tracking-[0.15em] font-semibold mb-4 flex items-center gap-1.5">

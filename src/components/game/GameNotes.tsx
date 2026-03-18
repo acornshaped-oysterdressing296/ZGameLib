@@ -42,7 +42,6 @@ export default function GameNotes({ gameId }: { gameId: string }) {
         )}
       </p>
 
-      {/* Note list */}
       <div className="flex flex-col gap-2 mb-3">
         <AnimatePresence>
           {notes.map((note: Note) => (
@@ -104,7 +103,6 @@ export default function GameNotes({ gameId }: { gameId: string }) {
         </AnimatePresence>
       </div>
 
-      {/* New note input */}
       <div className="flex flex-col gap-2">
         <textarea
           value={newNote}

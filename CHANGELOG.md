@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.6.0] — 2026-03-17
+
+### Fixed
+- **Process tracking fallback for Steam/Epic** — when the launched game process is never found within the polling window, the session is now properly closed with 0 minutes and the UI restores correctly; previously the background thread would silently exit leaving the app in a tracking state
+- **Cover cache race condition** — multiple components mounting simultaneously for the same game no longer trigger parallel fetches; a per-key in-flight deduplication guard prevents redundant requests; cache capacity raised from 200 to 500 entries
+- **Input length validation** — `name` is capped at 255 characters, `description` at 10,000, `tags` limited to 100 items each ≤ 50 characters; the backend rejects out-of-range values with a descriptive error rather than storing them silently
+- **No keyboard navigation on game cards** — cards now have `tabIndex={0}`, `role="button"`, and respond to Enter / Space, making the library navigable without a mouse
+- **Focus not trapped in modals** — Tab key could previously escape the Game Detail panel and Cover Search modal; a keyboard trap now constrains focus to the active overlay while it is open
+- **PowerShell injection in icon extraction** — icon extraction no longer interpolates file paths into the PowerShell command string; paths are now passed via `ZGAMELIB_EXE_PATH` and `ZGAMELIB_DEST_PATH` environment variables, eliminating a potential command injection vector
+- **Empty catch blocks in GameListRow** — launch and open-folder errors were silently swallowed; both now display an error toast with the failure message
+- **Cover cache memory leak** — the in-memory cover URL cache now uses LRU eviction (max 200 entries); previously it grew unboundedly for large libraries
+- **Non-atomic cover downloads** — cover images are now written to a `.tmp` file first and renamed atomically, preventing corrupt partial writes on crash or error
+- **Folder scan walk limit** — the custom folder scanner now hard-caps at 10,000 file system entries to prevent runaway walks on deeply nested or large drives
+- **Exe icon not refreshing after game update** — the icon cache key now includes the file's modification time (`mtime`); replacing a game's exe now shows the new icon on next launch
+- **Game detail shows stale data after switching games** — the detail panel now invalidates and refetches game data when `selectedGameId` changes, preventing stale reads between rapid game switches
+- **Auto-scan not triggering on startup** — `scan` was missing from the `useEffect` dependency array in `Layout.tsx`; auto-scan now fires reliably on app start when enabled
+- **Cover placeholder constant duplicated** — `COVER_PLACEHOLDER` was defined independently in `RecentlyPlayed` and `PinnedRow`; both now import from the shared `@/lib/utils` module
+- **Missing aria labels on scan-related topbar buttons** — scan log toggle and remove-duplicates button now have `aria-label` attributes for screen readers
+
+### Added
+- **Drag-and-drop reordering** — a new "Custom Order" sort option enables Framer Motion `Reorder` drag-and-drop for the game grid; dragging a card updates `sort_order` in the database for all affected games in a single batch transaction; order persists across sessions
+- **Time-to-beat estimates (HLTB)** — a clock icon button in the Game Detail panel fetches HowLongToBeat data for the game (main story and completionist hours); results are cached in the database (`hltb_main_mins`, `hltb_extra_mins`) and displayed in the stats grid
+- **Custom fields** — users can define arbitrary key/value metadata per game (text values); field editor in the Info tab with add/edit/delete; stored as a JSON map in the database under `custom_fields`
+- **Global keyboard shortcuts** — `?` toggles a keyboard shortcut help overlay; `N` opens the Add Game modal; `F` toggles favorite on the currently open game; `Escape` closes the detail panel or any overlay; global `keydown` listener in `Layout.tsx`
+- **Portable mode** — if a file named `portable.flag` exists next to `zgamelib.exe` at startup, the database and settings are stored in the same directory as the exe instead of `%APPDATA%\zgamelib`; useful for USB drives or self-contained installs
+- **Duplicate removal confirmation** — clicking "Remove Duplicates" in the topbar now shows a confirm dialog listing how many games will be hidden before acting; previously it applied the change instantly with no warning
+- **Cover lightbox** — clicking the game cover image in the detail panel now opens a full-size lightbox overlay instead of jumping straight to the cover search modal; a separate "Change Cover" button on the hover overlay handles cover replacement
+- **Quick rate from game card** — a row of 10 rating buttons appears at the bottom of a game card on hover, allowing ratings to be set without opening the detail panel; the active rating is highlighted
+- **Empty library illustration** — the first-run / empty-library state now shows an animated gamepad SVG illustration with orbiting sparkle dots and an accent glow, replacing the previous blank panel
+- **Trash bin / soft delete** — deleting a game moves it to trash (`deleted_at` timestamp) instead of hard-deleting it; restore or permanently delete from a new Trash section in Settings → Data; "Empty Trash" purges all at once — backwards-compatible via `ALTER TABLE`
+- **Pinned games row** — right-click any game → Pin to show it in a dedicated "Pinned" strip at the top of the Library; pin state persists to the database
+- **Session history** — each game launch records a session row (`started_at`, `ended_at`, `duration_mins`) in a new `sessions` table; view the last 50 sessions per game in a new History tab in the Game Detail panel
+- **Bulk auto-fetch missing covers** — new "Fetch Missing Covers" button in Settings → Data; fetches covers for all games that have no cover art (Steam games via CDN, others via name search); reports updated/failed counts
+- **Platform badge component** — dedicated `PlatformBadge` component with platform icons (Steam / Epic / GOG / Custom) used consistently across GameCard, GameListRow, GameDetail, and Spin pages
+- **Collapsible sidebar** — sidebar can be collapsed to a 62 px icon-only strip; collapses with a spring animation; collapse toggle moved to the header (always visible); state persists across sessions via `localStorage`
+- **Sort direction toggle** — ascending/descending sort button added to the PageSearch bar
+- **Theme hover preview** — hovering a theme button in Settings instantly previews it; the previous theme restores on mouse-out if not confirmed
+- **Delete option in right-click context menu** — "Delete" entry with red styling and a visual divider separator added to the `GameContextMenu`
+- **Weekly playtime goal** (`GoalBar`) — collapsible goal widget at the top of the Library page; set a target in hours, animated progress bar shows current week's playtime; "Goal reached!" state with green color; persists via `localStorage`
+- **Search scope toggle** — small `A` / `A+` toggle embedded inside the search input; switches between searching game name only vs. name + description
+- **Cover art filter** — "Has Cover" and "Missing Cover" filter buttons in the sidebar under a dedicated Cover Art section (consistent with Platform/Status styling); shows counts; replaces the old cluttered buttons in the search bar
+- **Export library as CSV** — new button in Settings → Data exports the full library as a `.csv` file with proper quoting; fields: id, name, platform, status, rating, playtime\_mins, date\_added, is\_favorite, tags
+- **Export Filtered** — new button in Settings → Data exports only the currently visible/filtered games as JSON; button label shows the active count (e.g. "Export Filtered (12)")
+- **"Saved ✓" flash indicator** — editing a game's name, description, or rating now flashes a brief "Saved ✓" indicator in the detail panel's tab bar using `AnimatePresence`
+- **Scroll-to-top button** — a floating ↑ button appears after scrolling 400 px on the Library, Favorites, and Recently Played pages; smooth animated entrance/exit
+- **Tab counts in game detail** — Screenshots and History tab labels now show live counts (e.g. "Screenshots (6)", "History (3)")
+- **Description expand/collapse** — long game descriptions are truncated at 200 characters with a "Show more / Show less" toggle in the game detail Info tab
+- **Cover search empty state** — the cover search modal now shows "No covers found for 'X'" with a helpful hint ("Try a shorter name or remove subtitles") instead of a blank panel before searching
+
+### Changed
+- Version bumped to **0.6.0**
+- `delete_game` command is now a soft delete; hard delete is `permanent_delete_game`
+- Sidebar collapse toggle moved from the bottom to the header row (always accessible regardless of window height)
+- About section in Settings spans full grid width (was half-width like other cards)
+- Cover art filter and search scope controls moved out of the search bar into proper locations (sidebar and inside search input respectively) for a cleaner topbar
+
+---
+
 ## [0.5.0] — 2026-03-17
 
 ### Fixed

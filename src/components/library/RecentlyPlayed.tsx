@@ -1,12 +1,10 @@
 import { motion } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
-import { timeAgo } from "@/lib/utils";
+import { timeAgo, COVER_PLACEHOLDER } from "@/lib/utils";
 import { useUIStore } from "@/store/useUIStore";
 import { useCover } from "@/hooks/useCover";
 import { ClockIcon } from "@/components/ui/Icons";
 import type { Game } from "@/lib/types";
-
-const COVER_PLACEHOLDER = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='160' viewBox='0 0 120 160'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23111118'/%3E%3Cstop offset='100%25' stop-color='%230a0a0f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect fill='url(%23g)' width='120' height='160' rx='6'/%3E%3C/svg%3E`;
 
 function RecentCard({ game, index }: { game: Game; index: number }) {
   const setSelectedGameId = useGameStore((s) => s.setSelectedGameId);

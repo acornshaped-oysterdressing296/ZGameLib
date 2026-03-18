@@ -3,6 +3,8 @@ import { useUIStore } from "@/store/useUIStore";
 import { useScan } from "@/hooks/useGames";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/tauri";
 import { TerminalIcon, PlusIcon, ScanIcon, LayersIcon } from "@/components/ui/Icons";
 
 export default function Topbar() {
@@ -13,7 +15,9 @@ export default function Topbar() {
   const logCount = useUIStore((s) => s.logs.length);
   const setAddGameOpen = useUIStore((s) => s.setAddGameOpen);
   const addToast = useUIStore((s) => s.addToast);
+  const openConfirm = useUIStore((s) => s.openConfirm);
   const { scan, isScanning } = useScan();
+  const { data: isPortable } = useQuery({ queryKey: ["portable_mode"], queryFn: api.isPortableMode, staleTime: Infinity });
 
   const handleRemoveDuplicates = () => {
     const games = useGameStore.getState().games;
@@ -29,19 +33,34 @@ export default function Topbar() {
     if (toHide.length === 0) {
       addToast("No duplicates found", "info");
     } else {
-      hideGames(toHide);
-      addToast(`${toHide.length} duplicate${toHide.length !== 1 ? "s" : ""} hidden`, "success");
+      openConfirm(
+        `Hide ${toHide.length} duplicate game${toHide.length !== 1 ? "s" : ""}?`,
+        () => {
+          hideGames(toHide);
+          addToast(`${toHide.length} duplicate${toHide.length !== 1 ? "s" : ""} hidden`, "success");
+        }
+      );
     }
   };
 
   return (
-    <div className="flex items-center justify-end gap-2 px-4 py-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+    <div className="flex items-center justify-between gap-2 px-4 py-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+      <div className="flex items-center">
+        {isPortable && (
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold tracking-wide text-amber-300 bg-amber-500/10 border border-amber-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            Portable
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
       <motion.button
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.92 }}
         onClick={() => setLogPanelOpen(!logPanelOpen)}
         className={cn("btn-icon relative", logPanelOpen && "text-emerald-400")}
         title="Scan log"
+        aria-label="Toggle scan log"
       >
         <TerminalIcon size={14} />
         {logCount > 0 && !logPanelOpen && (
@@ -57,6 +76,7 @@ export default function Topbar() {
         onClick={handleRemoveDuplicates}
         className="btn-icon"
         title="Remove duplicate games"
+        aria-label="Remove duplicate games"
       >
         <LayersIcon size={14} />
       </motion.button>
@@ -88,6 +108,7 @@ export default function Topbar() {
           <PlusIcon size={13} />
           Add Game
         </motion.button>
+      </div>
       </div>
     </div>
   );

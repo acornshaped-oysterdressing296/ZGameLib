@@ -19,6 +19,11 @@ export interface Game {
   epic_app_name: string | null;
   tags: string[];
   sort_order: number;
+  deleted_at: string | null;
+  is_pinned: boolean;
+  custom_fields: Record<string, string>;
+  hltb_main_mins: number | null;
+  hltb_extra_mins: number | null;
 }
 
 export interface Note {
@@ -27,6 +32,14 @@ export interface Note {
   content: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Session {
+  id: string;
+  game_id: string;
+  started_at: string;
+  ended_at: string;
+  duration_mins: number;
 }
 
 export interface CreateGamePayload {
@@ -51,6 +64,13 @@ export interface UpdateGamePayload {
   tags?: string[];
   exe_path?: string;
   install_dir?: string;
+  custom_fields?: Record<string, string>;
+}
+
+export interface HltbData {
+  main_mins: number | null;
+  extra_mins: number | null;
+  complete_mins: number | null;
 }
 
 export interface ScanResult {
@@ -85,6 +105,11 @@ export interface ImportResult {
   skipped: number;
 }
 
+export interface FetchCoversResult {
+  updated: number;
+  failed: number;
+}
+
 export interface CoverCandidate {
   name: string;
   app_id: string;
@@ -98,7 +123,7 @@ export interface UpdateInfo {
   published: string;
 }
 
-export type SortKey = "name" | "rating" | "last_played" | "date_added" | "playtime_mins";
+export type SortKey = "name" | "rating" | "last_played" | "date_added" | "playtime_mins" | "sort_order";
 export type ViewMode = "grid" | "list";
 
 export interface ModInfo {

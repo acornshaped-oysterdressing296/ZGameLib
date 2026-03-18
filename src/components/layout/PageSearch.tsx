@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
 import { useFilteredGames } from "@/hooks/useGames";
 import type { SortKey } from "@/lib/types";
@@ -15,6 +15,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "last_played", label: "Last Played" },
   { key: "date_added", label: "Date Added" },
   { key: "playtime_mins", label: "Playtime" },
+  { key: "sort_order", label: "Custom Order" },
 ];
 
 interface PageSearchProps {
@@ -36,6 +37,8 @@ export default function PageSearch({ showSort = true, showViewToggle = true }: P
   const hiddenIds = useGameStore((s) => s.hiddenIds);
   const showHidden = useGameStore((s) => s.showHidden);
   const toggleShowHidden = useGameStore((s) => s.toggleShowHidden);
+  const searchScope = useGameStore((s) => s.searchScope);
+  const setSearchScope = useGameStore((s) => s.setSearchScope);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const visibleTotal = showHidden ? totalCount : totalCount - hiddenIds.length;
@@ -74,16 +77,36 @@ export default function PageSearch({ showSort = true, showViewToggle = true }: P
           value={localSearch}
           onChange={(e) => setLocalSearch(e.target.value)}
           placeholder="Search… (/)"
-          className="input-glass pl-9 pr-8"
+          className="input-glass pl-9 pr-16"
+          aria-label="Search games"
         />
-        {localSearch && (
+        <div className="absolute right-2 inset-y-0 flex items-center gap-1">
+          <AnimatePresence>
+            {localSearch && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.7 }}
+                onClick={() => setLocalSearch("")}
+                className="w-5 h-5 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/8 transition-all"
+                aria-label="Clear search"
+              >
+                <CloseIcon size={11} />
+              </motion.button>
+            )}
+          </AnimatePresence>
           <button
-            onClick={() => setLocalSearch("")}
-            className="absolute right-2 inset-y-0 my-auto w-5 h-5 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-white/8 transition-all"
+            onClick={() => setSearchScope(searchScope === "name" ? "all" : "name")}
+            title={searchScope === "all" ? "Searching name + description" : "Searching name only (click to include description)"}
+            aria-label="Toggle search scope"
+            className={cn(
+              "w-5 h-5 flex items-center justify-center rounded text-[9px] font-bold transition-colors",
+              searchScope === "all" ? "text-accent-400" : "text-slate-600 hover:text-slate-400"
+            )}
           >
-            <CloseIcon size={11} />
+            {searchScope === "all" ? "A+" : "A"}
           </button>
-        )}
+        </div>
       </div>
 
       <div className="glass rounded-full px-3 py-1.5 flex items-center gap-1.5 shrink-0">

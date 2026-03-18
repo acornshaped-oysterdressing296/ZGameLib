@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { useGameStore } from "@/store/useGameStore";
 import { useFilteredGames } from "@/hooks/useGames";
@@ -33,8 +33,10 @@ function SkeletonGrid({ columns }: { columns: number }) {
 
 export default function GameGrid({ isLoading = false }: { isLoading?: boolean }) {
   const games = useFilteredGames();
-  const allGames = useGameStore((s) => s.games);
+  const allGamesRaw = useGameStore((s) => s.games);
   const viewMode = useGameStore((s) => s.viewMode);
+  const sortKey = useGameStore((s) => s.sortKey);
+  const setGames = useGameStore((s) => s.setGames);
   const setAddGameOpen = useUIStore((s) => s.setAddGameOpen);
   const search = useGameStore((s) => s.search);
   const filters = useGameStore((s) => s.filters);
@@ -53,7 +55,7 @@ export default function GameGrid({ isLoading = false }: { isLoading?: boolean })
 
   const hasActiveFilters = search.trim() !== "" || filters.platform !== "all" || filters.status !== "all" || filters.favoritesOnly || filters.minRating > 0 || filters.tags.length > 0 || filters.dateAddedFrom !== null || filters.dateAddedTo !== null;
 
-  if (games.length === 0 && allGames.length > 0 && hasActiveFilters) {
+  if (games.length === 0 && allGamesRaw.length > 0 && hasActiveFilters) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -97,6 +99,29 @@ export default function GameGrid({ isLoading = false }: { isLoading?: boolean })
           </motion.button>
         }
       />
+    );
+  }
+
+  if (sortKey === "sort_order") {
+    return (
+      <Reorder.Group
+        axis="y"
+        values={games}
+        onReorder={(newOrder) => {
+          const ids = newOrder.map((g) => g.id);
+          api.reorderGames(ids).catch(() => {});
+          const idSet = new Set(ids);
+          const updated = newOrder.map((g, i) => ({ ...g, sort_order: i }));
+          setGames([...updated, ...allGamesRaw.filter((g) => !idSet.has(g.id))]);
+        }}
+        className="flex flex-col gap-0.5 p-4"
+      >
+        {games.map((g) => (
+          <Reorder.Item key={g.id} value={g} className="list-none">
+            <GameListRow game={g} />
+          </Reorder.Item>
+        ))}
+      </Reorder.Group>
     );
   }
 

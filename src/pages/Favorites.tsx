@@ -1,11 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useGameStore } from "@/store/useGameStore";
 import GameGrid from "@/components/library/GameGrid";
 import PageSearch from "@/components/layout/PageSearch";
+import ScrollToTop from "@/components/ui/ScrollToTop";
 import { HeartIcon } from "@/components/ui/Icons";
 
 export default function Favorites() {
   const setFilter = useGameStore((s) => s.setFilter);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setFilter("favoritesOnly", true);
@@ -30,9 +32,10 @@ export default function Favorites() {
         </div>
       </div>
       <PageSearch showSort showViewToggle />
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
         <GameGrid />
       </div>
+      <ScrollToTop scrollRef={scrollRef} />
     </div>
   );
 }

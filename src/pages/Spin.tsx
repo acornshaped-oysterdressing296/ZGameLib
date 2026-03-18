@@ -4,10 +4,11 @@ import { useGameStore } from "@/store/useGameStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useCover } from "@/hooks/useCover";
 import { api } from "@/lib/tauri";
-import { cn, PLATFORM_COLORS, formatPlaytime } from "@/lib/utils";
+import { cn, formatPlaytime } from "@/lib/utils";
 import type { Game } from "@/lib/types";
 import { SpinIcon, PlayIcon, SearchIcon, SteamIcon, EpicIcon, GogIcon, CustomGameIcon, HeartIcon, LibraryIcon, SparkleIcon, CloseIcon, CheckIcon } from "@/components/ui/Icons";
 import Badge from "@/components/ui/Badge";
+import PlatformBadge from "@/components/ui/PlatformBadge";
 
 const SEG_PALETTE = [
   ["#7c3aed", "#6d28d9"], ["#2563eb", "#1d4ed8"], ["#db2777", "#be185d"],
@@ -275,7 +276,7 @@ function WinnerCard({ game, onPlayAgain, onExclude }: {
             <span className="text-[10px] font-bold text-accent-400 uppercase tracking-[0.16em]">Winner</span>
           </div>
           <p className="text-[18px] font-bold text-white leading-tight truncate mb-1.5">{game.name}</p>
-          <Badge className={PLATFORM_COLORS[game.platform]}>{platformLabel}</Badge>
+          <PlatformBadge platform={game.platform} />
           <div className="mt-2 flex flex-col gap-1">
             <StarRow rating={game.rating} />
             {game.playtime_mins > 0 && (

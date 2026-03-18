@@ -2,7 +2,23 @@ import { useState, useEffect, useRef } from "react";
 import { api } from "@/lib/tauri";
 import type { Game } from "@/lib/types";
 
+const CACHE_MAX = 500;
 const cache = new Map<string, string>();
+
+function cacheGet(key: string): string | undefined {
+  if (!cache.has(key)) return undefined;
+  const val = cache.get(key)!;
+  cache.delete(key);
+  cache.set(key, val); // move to end (most recently used)
+  return val;
+}
+
+function cacheSet(key: string, val: string) {
+  if (cache.has(key)) cache.delete(key);
+  else if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!); // evict oldest
+  cache.set(key, val);
+}
+
 const pending = new Map<string, Promise<string>>();
 
 const MAX_CONCURRENT = 4;
@@ -42,7 +58,7 @@ export function useCover(game: Game): string | null {
   const [src, setSrc] = useState<string | null>(() => {
     if (!path) return null;
     if (path.startsWith("data:") || path.startsWith("http://") || path.startsWith("https://")) return path;
-    return cache.get(path) || null;
+    return cacheGet(path) || null;
   });
 
   const genRef = useRef(0);
@@ -50,7 +66,8 @@ export function useCover(game: Game): string | null {
   useEffect(() => {
     if (!path) { setSrc(null); return; }
     if (path.startsWith("data:")) { setSrc(path); return; }
-    if (cache.has(path)) { setSrc(cache.get(path)!); return; }
+    const cached = cacheGet(path);
+    if (cached) { setSrc(cached); return; }
 
     const gen = ++genRef.current;
     const isRemote = path.startsWith("http://") || path.startsWith("https://");
@@ -58,7 +75,7 @@ export function useCover(game: Game): string | null {
 
     queueFetch(fetcher, path)
       .then((dataUri) => {
-        cache.set(path, dataUri);
+        cacheSet(path, dataUri);
         if (genRef.current === gen) setSrc(dataUri);
       })
       .catch(() => {});
@@ -68,7 +85,7 @@ export function useCover(game: Game): string | null {
 }
 
 export function setCoverCache(path: string, dataUri: string) {
-  cache.set(path, dataUri);
+  cacheSet(path, dataUri);
 }
 
 export function clearCoverCache(path: string) {

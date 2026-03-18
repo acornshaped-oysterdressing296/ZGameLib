@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { PlayIcon, FolderIcon, HeartIcon, CopyIcon, SettingsIcon } from "@/components/ui/Icons";
+import { PlayIcon, FolderIcon, HeartIcon, CopyIcon, SettingsIcon, PinIcon, TrashIcon } from "@/components/ui/Icons";
 import { useGameStore } from "@/store/useGameStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useGames } from "@/hooks/useGames";
@@ -22,6 +22,7 @@ interface MenuItem {
   icon: ReactNode;
   onClick: () => void;
   className?: string;
+  dividerBefore?: boolean;
 }
 
 function ContextMenuPortal({
@@ -84,19 +85,21 @@ function ContextMenuPortal({
       style={{ left: adjusted.x, top: adjusted.y, animation: "ctx-menu-in 0.12s ease-out" }}
     >
       {items.map((item) => (
-        <button
-          key={item.label}
-          onClick={() => {
-            item.onClick();
-            onClose();
-          }}
-          className={`w-full flex items-center gap-3 px-3.5 py-2 text-[13px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors duration-150 ${item.className ?? ""}`}
-        >
-          <span className="w-4 h-4 flex items-center justify-center shrink-0 opacity-70">
-            {item.icon}
-          </span>
-          {item.label}
-        </button>
+        <div key={item.label}>
+          {item.dividerBefore && <div className="my-1 mx-2 border-t border-white/[0.06]" />}
+          <button
+            onClick={() => {
+              item.onClick();
+              onClose();
+            }}
+            className={`w-full flex items-center gap-3 px-3.5 py-2 text-[13px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors duration-150 ${item.className ?? ""}`}
+          >
+            <span className="w-4 h-4 flex items-center justify-center shrink-0 opacity-70">
+              {item.icon}
+            </span>
+            {item.label}
+          </button>
+        </div>
       ))}
     </div>,
     document.body
@@ -108,7 +111,7 @@ export default function GameContextMenu({ game, children }: GameContextMenuProps
   const setSelectedGameId = useGameStore((s) => s.setSelectedGameId);
   const setDetailOpen = useUIStore((s) => s.setDetailOpen);
   const addToast = useUIStore((s) => s.addToast);
-  const { toggleFavorite } = useGames();
+  const { toggleFavorite, togglePinned, remove } = useGames();
 
   const close = useCallback(() => setMenuPos(null), []);
 
@@ -144,6 +147,10 @@ export default function GameContextMenu({ game, children }: GameContextMenuProps
     toggleFavorite(game.id);
   }, [game.id, toggleFavorite]);
 
+  const handleTogglePinned = useCallback(() => {
+    togglePinned(game.id);
+  }, [game.id, togglePinned]);
+
   const handleCopyName = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(game.name);
@@ -158,12 +165,18 @@ export default function GameContextMenu({ game, children }: GameContextMenuProps
     setDetailOpen(true);
   }, [game.id, setSelectedGameId, setDetailOpen]);
 
+  const handleDelete = useCallback(() => {
+    remove(game.id);
+  }, [game.id, remove]);
+
   const items: MenuItem[] = [
     { label: "Play", icon: <PlayIcon size={14} />, onClick: handlePlay, className: "hover:text-cyan-400" },
     { label: "Open Folder", icon: <FolderIcon size={14} />, onClick: handleOpenFolder },
     { label: game.is_favorite ? "Unfavorite" : "Favorite", icon: <HeartIcon size={14} filled={game.is_favorite} />, onClick: handleToggleFavorite, className: game.is_favorite ? "text-pink-400" : "" },
+    { label: game.is_pinned ? "Unpin" : "Pin", icon: <PinIcon size={14} filled={game.is_pinned} />, onClick: handleTogglePinned, className: game.is_pinned ? "text-accent-400" : "" },
     { label: "Copy Name", icon: <CopyIcon size={14} />, onClick: handleCopyName },
     { label: "View Details", icon: <SettingsIcon size={14} />, onClick: handleViewDetails },
+    { label: "Delete", icon: <TrashIcon size={14} />, onClick: handleDelete, className: "text-red-400 hover:text-red-300 hover:bg-red-500/[0.06]", dividerBefore: true },
   ];
 
   return (

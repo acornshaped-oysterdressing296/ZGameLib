@@ -1,22 +1,22 @@
 import { memo, useState } from "react";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { cn, PLATFORM_COLORS, formatPlaytime, COVER_PLACEHOLDER } from "@/lib/utils";
+import { cn, formatPlaytime, COVER_PLACEHOLDER } from "@/lib/utils";
 import type { Game } from "@/lib/types";
 import { useGameStore } from "@/store/useGameStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useGames } from "@/hooks/useGames";
 import { useCover } from "@/hooks/useCover";
 import { api } from "@/lib/tauri";
-import Badge from "@/components/ui/Badge";
 import GameContextMenu from "@/components/ui/GameContextMenu";
+import PlatformBadge from "@/components/ui/PlatformBadge";
 import { HeartIcon, PlayIcon, FolderIcon, StarIcon, FireIcon, SettingsIcon, AlertIcon } from "@/components/ui/Icons";
 
 function GameCard({ game }: { game: Game }) {
   const setSelectedGameId = useGameStore((s) => s.setSelectedGameId);
   const setDetailOpen = useUIStore((s) => s.setDetailOpen);
   const addToast = useUIStore((s) => s.addToast);
-  const { toggleFavorite } = useGames();
+  const { toggleFavorite, update } = useGames();
   const coverUrl = useCover(game);
   const [imgFailed, setImgFailed] = useState(false);
 
@@ -73,6 +73,9 @@ function GameCard({ game }: { game: Game }) {
     <GameContextMenu game={game}>
     <motion.div
       onClick={openDetail}
+      tabIndex={0}
+      role="button"
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openDetail(); } }}
       className="group relative cursor-pointer rounded-2xl overflow-hidden card-lift card-shine border border-white/[0.04] hover:border-accent-500/30"
       style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
     >
@@ -119,9 +122,7 @@ function GameCard({ game }: { game: Game }) {
         </div>
 
         <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-          <Badge className={PLATFORM_COLORS[game.platform]}>
-            {game.platform === "steam" ? "Steam" : game.platform === "epic" ? "Epic" : game.platform === "gog" ? "GOG" : "Custom"}
-          </Badge>
+          <PlatformBadge platform={game.platform} />
           {exeMissing && (
             <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center" title="Executable not found">
               <AlertIcon size={12} className="text-amber-400" />
@@ -134,6 +135,28 @@ function GameCard({ game }: { game: Game }) {
             <HeartIcon size={14} filled className="text-pink-400 drop-shadow-lg" />
           </div>
         )}
+
+        <div
+          className="absolute bottom-0 left-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center px-2 pb-2 gap-0.5">
+            {[1,2,3,4,5,6,7,8,9,10].map((n) => (
+              <button
+                key={n}
+                onClick={(e) => { e.stopPropagation(); update({ id: game.id, rating: n }); }}
+                className={cn(
+                  "flex-1 h-4 rounded-sm text-[8px] font-bold transition-all",
+                  game.rating === n
+                    ? "bg-accent-500 text-white"
+                    : "text-slate-600 hover:text-white hover:bg-accent-500/40 bg-black/40"
+                )}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-3">
           {game.rating !== null && (

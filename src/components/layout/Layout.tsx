@@ -192,7 +192,7 @@ function AppBehavior() {
       hasAutoScanned.current = true;
       scan();
     }
-  }, [data?.auto_scan]);
+  }, [data?.auto_scan, scan]);
 
   useEffect(() => {
     import("@tauri-apps/plugin-updater").then(({ check }) =>
@@ -215,6 +215,33 @@ export default function Layout() {
   const pendingUpdate = useUIStore((s) => s.pendingUpdate);
   const setPendingUpdate = useUIStore((s) => s.setPendingUpdate);
   const isDetailOpen = useUIStore((s) => s.isDetailOpen);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const setAddGameOpen = useUIStore((s) => s.setAddGameOpen);
+  const setDetailOpen = useUIStore((s) => s.setDetailOpen);
+  const selectedGameId = useGameStore((s) => s.selectedGameId);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (document.activeElement as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "?") { setShowShortcuts((v) => !v); return; }
+      if (e.key === "Escape") {
+        if (showShortcuts) { setShowShortcuts(false); return; }
+        setDetailOpen(false);
+        return;
+      }
+      if (e.key === "n" || e.key === "N") { setAddGameOpen(true); return; }
+      if (!selectedGameId) return;
+      const { games, updateGame } = useGameStore.getState();
+      const game = games.find((g) => g.id === selectedGameId);
+      if (!game) return;
+      if (e.key === "f" || e.key === "F") {
+        api.toggleFavorite(game.id).then((v) => updateGame({ ...game, is_favorite: v })).catch(() => {});
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedGameId, showShortcuts, setDetailOpen, setAddGameOpen]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -238,6 +265,44 @@ export default function Layout() {
       <AnimatePresence>
         {pendingUpdate && (
           <UpdateBanner update={pendingUpdate} onDismiss={() => setPendingUpdate(null)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showShortcuts && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowShortcuts(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 16 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.92, y: 16 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="glass rounded-2xl p-6 w-[380px]"
+              style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+              <p className="text-[13px] font-bold text-white mb-4">Keyboard Shortcuts</p>
+              <div className="flex flex-col gap-2.5">
+                {[
+                  ["/", "Focus search"],
+                  ["N", "Add game"],
+                  ["F", "Toggle favorite (game open)"],
+                  ["Escape", "Close panel / modal"],
+                  ["?", "Toggle this help"],
+                ].map(([key, label]) => (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-[12px] text-slate-400">{label}</span>
+                    <kbd className="px-2 py-0.5 rounded-md text-[11px] font-mono text-slate-300 glass border border-white/10">{key}</kbd>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

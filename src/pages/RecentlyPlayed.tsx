@@ -1,12 +1,15 @@
+import { useRef } from "react";
 import { motion } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
 import GameCard from "@/components/library/GameCard";
 import PageSearch from "@/components/layout/PageSearch";
+import ScrollToTop from "@/components/ui/ScrollToTop";
 import { timeAgo } from "@/lib/utils";
 import { ClockIcon } from "@/components/ui/Icons";
 
 export default function RecentlyPlayedPage() {
   const games = useGameStore((s) => s.games);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const recent = [...games]
     .filter((g) => g.last_played)
@@ -30,7 +33,7 @@ export default function RecentlyPlayedPage() {
         </div>
       </div>
       <PageSearch showSort={false} showViewToggle={false} />
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
         {recent.length === 0 ? (
           <p className="text-slate-700 text-[13px] mt-8 text-center">
             No games played yet. Launch a game from your library!
@@ -51,6 +54,7 @@ export default function RecentlyPlayedPage() {
           </div>
         )}
       </div>
+      <ScrollToTop scrollRef={scrollRef} />
     </div>
   );
 }

@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { api } from "@/lib/tauri";
 import { useUIStore } from "@/store/useUIStore";
-import type { AppSettings, StatusConfig } from "@/lib/types";
+import { useCover } from "@/hooks/useCover";
+import type { AppSettings, StatusConfig, Game } from "@/lib/types";
+import { COVER_PLACEHOLDER } from "@/lib/utils";
 import {
   DownloadIcon, SettingsIcon, CheckIcon, PlusIcon, TrashIcon,
   CloseIcon, GamepadIcon, SparkleIcon, GlobeIcon
@@ -11,6 +13,7 @@ import {
 import { open } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
 import { PromoCards } from "@/components/game/ModsPromoPanel";
+import { useFilteredGames } from "@/hooks/useGames";
 
 function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -68,6 +71,38 @@ function applyTheme(theme: string) {
   document.documentElement.setAttribute("data-theme", theme);
 }
 
+function TrashedGameRow({ game, onRestore, onDelete }: { game: Game; onRestore: () => void; onDelete: () => void }) {
+  const coverUrl = useCover(game);
+  return (
+    <div className="flex items-center gap-3 py-2 border-b border-white/4 last:border-0">
+      <img
+        src={coverUrl || COVER_PLACEHOLDER}
+        alt={game.name}
+        className="w-8 h-11 rounded-md object-cover shrink-0 border border-white/[0.05]"
+        onError={(e) => { (e.target as HTMLImageElement).src = COVER_PLACEHOLDER; }}
+      />
+      <div className="flex-1 min-w-0">
+        <p className="text-[12px] text-slate-300 truncate font-medium">{game.name}</p>
+        <p className="text-[10px] text-slate-600">{game.platform}</p>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          onClick={onRestore}
+          className="px-2 py-1 rounded-lg text-[10px] font-medium text-accent-300 hover:bg-accent-500/10 transition-colors"
+        >
+          Restore
+        </button>
+        <button
+          onClick={onDelete}
+          className="px-2 py-1 rounded-lg text-[10px] font-medium text-red-400 hover:bg-red-500/10 transition-colors"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const addToast = useUIStore((s) => s.addToast);
   const setCustomStatuses = useUIStore((s) => s.setCustomStatuses);
@@ -82,6 +117,10 @@ export default function Settings() {
   const [newStatusColor, setNewStatusColor] = useState("#60a5fa");
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [checkStatus, setCheckStatus] = useState<"idle" | "checking" | "up-to-date" | "available">("idle");
+  const [trashedGames, setTrashedGames] = useState<Game[]>([]);
+  const [trashLoaded, setTrashLoaded] = useState(false);
+  const [fetchingCovers, setFetchingCovers] = useState(false);
+  const filteredGames = useFilteredGames();
 
   const { data: querySettings } = useQuery({
     queryKey: ["settings"],
@@ -108,6 +147,46 @@ export default function Settings() {
     },
     onError: (e) => addToast(String(e), "error"),
   });
+
+  const loadTrash = async () => {
+    try {
+      const games = await api.getTrashedGames();
+      setTrashedGames(games);
+      setTrashLoaded(true);
+    } catch (e) {
+      addToast(String(e), "error");
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await api.restoreGame(id);
+      setTrashedGames((g) => g.filter((x) => x.id !== id));
+      addToast("Game restored", "success");
+    } catch (e) {
+      addToast(String(e), "error");
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    try {
+      await api.permanentDeleteGame(id);
+      setTrashedGames((g) => g.filter((x) => x.id !== id));
+      addToast("Game permanently deleted");
+    } catch (e) {
+      addToast(String(e), "error");
+    }
+  };
+
+  const handlePurgeTrash = async () => {
+    try {
+      const count = await api.purgeTrash();
+      setTrashedGames([]);
+      addToast(`Trash emptied — ${count} game${count !== 1 ? "s" : ""} deleted permanently`);
+    } catch (e) {
+      addToast(String(e), "error");
+    }
+  };
 
   const handleImport = async () => {
     try {
@@ -137,6 +216,23 @@ export default function Settings() {
     }
   };
 
+  const handleFetchCovers = async () => {
+    setFetchingCovers(true);
+    try {
+      const result = await api.fetchMissingCovers();
+      addToast(
+        result.updated > 0
+          ? `Fetched ${result.updated} cover${result.updated !== 1 ? "s" : ""}${result.failed > 0 ? ` (${result.failed} failed)` : ""}`
+          : "No missing covers found",
+        result.updated > 0 ? "success" : "info"
+      );
+    } catch (e) {
+      addToast(String(e), "error");
+    } finally {
+      setFetchingCovers(false);
+    }
+  };
+
   const handleExport = async () => {
     try {
       const json = await api.exportLibrary();
@@ -148,6 +244,39 @@ export default function Settings() {
       if (!path) return;
       await api.saveFile(path, json);
       addToast("Library exported", "success");
+    } catch (e) {
+      addToast(String(e), "error");
+    }
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      const csv = await api.exportLibraryCsv();
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        filters: [{ name: "CSV", extensions: ["csv"] }],
+        defaultPath: `zgamelib-export-${new Date().toISOString().slice(0, 10)}.csv`,
+      });
+      if (!path) return;
+      await api.saveFile(path, csv);
+      addToast("Library exported as CSV", "success");
+    } catch (e) {
+      addToast(String(e), "error");
+    }
+  };
+
+  const handleExportFiltered = async () => {
+    try {
+      const ids = filteredGames.map((g) => g.id);
+      const json = await api.exportGamesByIds(ids);
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        defaultPath: `zgamelib-filtered-${new Date().toISOString().slice(0, 10)}.json`,
+      });
+      if (!path) return;
+      await api.saveFile(path, json);
+      addToast(`Exported ${ids.length} game${ids.length !== 1 ? "s" : ""}`, "success");
     } catch (e) {
       addToast(String(e), "error");
     }
@@ -221,8 +350,8 @@ export default function Settings() {
         <div className="flex flex-col gap-4">
 
           <Section title="General" icon={<SparkleIcon size={13} />} delay={0.04}>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="flex flex-col gap-5">
+              <div className="w-48">
                 <label className="text-[10px] text-slate-600 uppercase tracking-[0.14em] font-semibold block mb-2">
                   Default View
                 </label>
@@ -236,22 +365,39 @@ export default function Settings() {
                 </select>
               </div>
               <div>
-                <label className="text-[10px] text-slate-600 uppercase tracking-[0.14em] font-semibold block mb-2">
+                <label className="text-[10px] text-slate-600 uppercase tracking-[0.14em] font-semibold block mb-3">
                   Theme
                 </label>
-                <select
-                  value={settings.theme}
-                  onChange={(e) => setSettings({ ...settings, theme: e.target.value })}
-                  className="input-glass cursor-pointer"
-                >
-                  <option value="dark" className="bg-[#0d0c14]">Dark</option>
-                  <option value="amoled" className="bg-[#0d0c14]">AMOLED</option>
-                  <option value="nord" className="bg-[#2e3440]">Nord</option>
-                  <option value="catppuccin" className="bg-[#1e1e2e]">Catppuccin Mocha</option>
-                  <option value="dracula" className="bg-[#282a36]">Dracula</option>
-                  <option value="gruvbox" className="bg-[#282828]">Gruvbox</option>
-                  <option value="tokyonight" className="bg-[#1a1b26]">Tokyo Night</option>
-                </select>
+                <div className="grid grid-cols-4 gap-2">
+                  {([
+                    { value: "dark",        label: "Dark",            bg: "#07060b", accent: "#7c3aed" },
+                    { value: "amoled",      label: "AMOLED",          bg: "#000000", accent: "#7c3aed" },
+                    { value: "nord",        label: "Nord",            bg: "#2e3440", accent: "#5e81ac" },
+                    { value: "catppuccin",  label: "Catppuccin",      bg: "#1e1e2e", accent: "#cba6f7" },
+                    { value: "dracula",     label: "Dracula",         bg: "#282a36", accent: "#ff79c6" },
+                    { value: "gruvbox",     label: "Gruvbox",         bg: "#282828", accent: "#d79921" },
+                    { value: "tokyonight",  label: "Tokyo Night",     bg: "#1a1b26", accent: "#7dcfff" },
+                  ] as const).map((t) => (
+                    <button
+                      key={t.value}
+                      onClick={() => { setSettings({ ...settings, theme: t.value }); applyTheme(t.value); }}
+                      onMouseEnter={() => applyTheme(t.value)}
+                      onMouseLeave={() => applyTheme(settings.theme)}
+                      className={cn(
+                        "flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[12px] font-medium transition-all duration-150 border",
+                        settings.theme === t.value
+                          ? "border-accent-500/50 bg-accent-600/20 text-white"
+                          : "border-white/6 bg-white/3 text-slate-400 hover:text-slate-200 hover:border-white/12"
+                      )}
+                    >
+                      <span
+                        className="w-4 h-4 rounded-full border border-white/20 shrink-0"
+                        style={{ background: `radial-gradient(circle at 30% 30%, ${t.accent}, ${t.bg})` }}
+                      />
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </Section>
@@ -582,9 +728,83 @@ export default function Settings() {
                   <PlusIcon size={13} />
                   Import
                 </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleFetchCovers}
+                  disabled={fetchingCovers}
+                  className="btn-ghost w-full justify-center text-[12px] disabled:opacity-50"
+                >
+                  {fetchingCovers ? (
+                    <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+                      <DownloadIcon size={13} />
+                    </motion.span>
+                  ) : (
+                    <DownloadIcon size={13} />
+                  )}
+                  {fetchingCovers ? "Fetching covers…" : "Fetch Missing Covers"}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleExportCsv}
+                  className="btn-ghost w-full justify-center text-[12px]"
+                >
+                  <DownloadIcon size={13} />
+                  Export as CSV
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={handleExportFiltered}
+                  className="btn-ghost w-full justify-center text-[12px]"
+                >
+                  <DownloadIcon size={13} />
+                  Export Filtered ({filteredGames.length})
+                </motion.button>
               </div>
             </Section>
 
+            <Section title="Trash" icon={<TrashIcon size={13} />} delay={0.21}>
+              <p className="text-[11px] text-slate-600 mb-3 leading-relaxed">
+                Deleted games are kept here. Restore or permanently delete them.
+              </p>
+              {!trashLoaded ? (
+                <motion.button
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                  onClick={loadTrash}
+                  className="btn-ghost w-full justify-center text-[12px]"
+                >
+                  <TrashIcon size={13} />
+                  View Trash
+                </motion.button>
+              ) : trashedGames.length === 0 ? (
+                <p className="text-[11px] text-slate-600 text-center py-3">Trash is empty</p>
+              ) : (
+                <>
+                  <div className="max-h-[260px] overflow-y-auto mb-3">
+                    {trashedGames.map((g) => (
+                      <TrashedGameRow
+                        key={g.id}
+                        game={g}
+                        onRestore={() => handleRestore(g.id)}
+                        onDelete={() => handlePermanentDelete(g.id)}
+                      />
+                    ))}
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                    onClick={handlePurgeTrash}
+                    className="btn-ghost w-full justify-center text-[12px] text-red-400 hover:border-red-500/20"
+                  >
+                    <TrashIcon size={13} />
+                    Empty Trash ({trashedGames.length})
+                  </motion.button>
+                </>
+              )}
+            </Section>
+
+          <div className="col-span-2">
             <Section title="About" icon={<GamepadIcon size={13} />} delay={0.22}>
               <div className="flex flex-col items-center text-center gap-3 py-1">
                 <div
@@ -595,7 +815,7 @@ export default function Settings() {
                 </div>
                 <div>
                   <p className="text-[13px] font-bold text-white">ZGameLib</p>
-                  <p className="text-[11px] text-slate-600">v0.5.0</p>
+                  <p className="text-[11px] text-slate-600">v0.6.0</p>
                 </div>
                 <p className="text-[11px] text-slate-500">
                   Made by{" "}
@@ -637,6 +857,7 @@ export default function Settings() {
                 </motion.button>
               </div>
             </Section>
+          </div>
           </div>
 
         </div>
