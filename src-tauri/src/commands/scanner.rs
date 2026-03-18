@@ -459,8 +459,20 @@ fn scan_steam_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<ru
     let mut added = 0;
     let mut skipped = 0;
 
+    let mut steam_stmt = conn.prepare(
+        "SELECT steam_app_id, id, cover_path FROM games WHERE steam_app_id IS NOT NULL AND deleted_at IS NULL"
+    ).map_err(|e| e.to_string())?;
+    let steam_existing: std::collections::HashMap<String, (String, Option<String>)> =
+        steam_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .map(|(app_id, id, cover)| (app_id, (id, cover)))
+            .collect();
+    drop(steam_stmt);
+
     for entry in entries {
-        if let Some((existing_id, _)) = queries::get_steam_game_cover(&conn, &entry.app_id) {
+        if let Some((existing_id, _)) = steam_existing.get(&entry.app_id) {
+            let existing_id = existing_id.clone();
             if let Some(ref cover) = entry.cover {
                 let _ = queries::update_cover_path(&conn, &existing_id, cover);
             }
@@ -587,8 +599,20 @@ fn scan_epic_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rus
     let mut added = 0;
     let mut skipped = 0;
 
+    let mut epic_stmt = conn.prepare(
+        "SELECT epic_app_name, id, cover_path FROM games WHERE epic_app_name IS NOT NULL AND deleted_at IS NULL"
+    ).map_err(|e| e.to_string())?;
+    let epic_existing: std::collections::HashMap<String, (String, Option<String>)> =
+        epic_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .map(|(app_name, id, cover)| (app_name, (id, cover)))
+            .collect();
+    drop(epic_stmt);
+
     for entry in entries {
-        if let Some((existing_id, existing_cover)) = queries::get_epic_game_cover(&conn, &entry.app_name) {
+        if let Some((existing_id, existing_cover)) = epic_existing.get(&entry.app_name) {
+            let existing_id = existing_id.clone();
             if existing_cover.is_none() {
                 if let Some(ref cover) = entry.cover {
                     let _ = queries::update_cover_path(&conn, &existing_id, cover);
@@ -734,14 +758,18 @@ fn scan_gog_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rusq
     let mut added = 0;
     let mut skipped = 0;
 
-    for entry in entries {
-        let exists: bool = conn.query_row(
-            "SELECT COUNT(*) FROM games WHERE install_dir = ?1 AND platform = 'gog'",
-            rusqlite::params![entry.install_dir],
-            |r| r.get::<_, i64>(0),
-        ).unwrap_or(0) > 0;
+    let mut gog_stmt = conn.prepare(
+        "SELECT install_dir FROM games WHERE platform = 'gog' AND install_dir IS NOT NULL AND deleted_at IS NULL"
+    ).map_err(|e| e.to_string())?;
+    let gog_existing: std::collections::HashSet<String> =
+        gog_stmt.query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+    drop(gog_stmt);
 
-        if exists { skipped += 1; continue; }
+    for entry in entries {
+        if gog_existing.contains(&entry.install_dir) { skipped += 1; continue; }
 
         let game = Game {
             id: uuid::Uuid::new_v4().to_string(),
@@ -1052,8 +1080,31 @@ fn scan_folder_for_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mut
 #[tauri::command]
 pub fn set_game_cover(state: State<DbState>, game_id: String, image_path: String) -> Result<String, String> {
     let src = std::path::Path::new(&image_path);
-    if !src.exists() {
-        return Err("Image file not found".to_string());
+
+    let meta = std::fs::symlink_metadata(src).map_err(|_| "Image file not found".to_string())?;
+    if meta.file_type().is_symlink() {
+        return Err("Symlinks are not allowed as cover images".to_string());
+    }
+
+    let ext_str = src.extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_default();
+    const ALLOWED_EXTS: &[&str] = &["jpg", "jpeg", "png", "webp"];
+    if !ALLOWED_EXTS.contains(&ext_str.as_str()) {
+        return Err(format!("Unsupported image format '{}'. Use jpg, png, or webp.", ext_str));
+    }
+
+    let mut img_file = std::fs::File::open(src).map_err(|e| e.to_string())?;
+    let mut magic = [0u8; 12];
+    let n = std::io::Read::read(&mut img_file, &mut magic).unwrap_or(0);
+    let magic = &magic[..n];
+    let valid_magic =
+        (magic.len() >= 3 && magic[0] == 0xFF && magic[1] == 0xD8 && magic[2] == 0xFF) ||
+        (magic.len() >= 4 && &magic[0..4] == b"\x89PNG") ||
+        (magic.len() >= 12 && &magic[0..4] == b"RIFF" && &magic[8..12] == b"WEBP");
+    if !valid_magic {
+        return Err("File does not appear to be a valid image".to_string());
     }
 
     let data_dir = dirs::data_local_dir()
@@ -1063,8 +1114,7 @@ pub fn set_game_cover(state: State<DbState>, game_id: String, image_path: String
 
     std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
 
-    let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("png");
-    let dest_name = format!("{}.{}", game_id, ext);
+    let dest_name = format!("{}.{}", game_id, ext_str);
     let dest = data_dir.join(&dest_name);
 
     std::fs::copy(src, &dest).map_err(|e| e.to_string())?;

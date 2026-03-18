@@ -138,38 +138,12 @@ pub fn delete_game(conn: &Connection, id: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn get_steam_game_cover(conn: &Connection, steam_app_id: &str) -> Option<(String, Option<String>)> {
-    conn.query_row(
-        "SELECT id, cover_path FROM games WHERE steam_app_id = ?1",
-        params![steam_app_id],
-        |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?)),
-    )
-    .ok()
-}
-
-pub fn get_epic_game_cover(conn: &Connection, epic_app_name: &str) -> Option<(String, Option<String>)> {
-    conn.query_row(
-        "SELECT id, cover_path FROM games WHERE epic_app_name = ?1",
-        params![epic_app_name],
-        |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?)),
-    )
-    .ok()
-}
-
 pub fn update_cover_path(conn: &Connection, game_id: &str, cover_path: &str) -> anyhow::Result<()> {
     conn.execute(
         "UPDATE games SET cover_path = ?1 WHERE id = ?2",
         params![cover_path, game_id],
     )?;
     Ok(())
-}
-
-pub fn game_exists_by_steam_id(conn: &Connection, steam_app_id: &str) -> bool {
-    get_steam_game_cover(conn, steam_app_id).is_some()
-}
-
-pub fn game_exists_by_epic_name(conn: &Connection, epic_app_name: &str) -> bool {
-    get_epic_game_cover(conn, epic_app_name).is_some()
 }
 
 pub fn get_notes_for_game(conn: &Connection, game_id: &str) -> anyhow::Result<Vec<Note>> {

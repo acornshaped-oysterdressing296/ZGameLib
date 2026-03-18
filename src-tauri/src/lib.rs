@@ -4,6 +4,7 @@ mod commands;
 
 use db::{DbState, init_db, queries};
 use std::sync::{Arc, Mutex};
+use tauri::Emitter;
 use commands::{games, scanner, launcher, settings, modloader};
 use tauri::{
     menu::{Menu, MenuItem},
@@ -60,6 +61,61 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            {
+                let db = app.state::<DbState>();
+                let lock = db.0.lock();
+                if let Ok(conn) = lock {
+                    let wx = queries::get_setting(&conn, "window_x").and_then(|v| v.parse::<i32>().ok());
+                    let wy = queries::get_setting(&conn, "window_y").and_then(|v| v.parse::<i32>().ok());
+                    let ww = queries::get_setting(&conn, "window_width").and_then(|v| v.parse::<u32>().ok());
+                    let wh = queries::get_setting(&conn, "window_height").and_then(|v| v.parse::<u32>().ok());
+                    if let (Some(x), Some(y), Some(w), Some(h)) = (wx, wy, ww, wh) {
+                        if x >= 0 && y >= 0 {
+                            if let Some(win) = app.get_webview_window("main") {
+                                let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+                                let _ = win.set_size(tauri::PhysicalSize::new(w, h));
+                            }
+                        }
+                    }
+                }
+            }
+
+            {
+                let db = app.state::<DbState>();
+                let lock = db.0.lock();
+                if let Ok(conn) = lock {
+                    let reminders_enabled = queries::get_setting(&conn, "playtime_reminders")
+                        .map(|v| v != "false").unwrap_or(true);
+                    if reminders_enabled {
+                        let threshold_str = {
+                            let dt = chrono::Utc::now() - chrono::Duration::days(30);
+                            dt.to_rfc3339()
+                        };
+                        let mut stmt_opt = conn.prepare(
+                            "SELECT name, last_played FROM games WHERE last_played IS NOT NULL AND last_played < ?1 AND playtime_mins > 0 AND deleted_at IS NULL ORDER BY last_played ASC LIMIT 1"
+                        ).ok();
+                        if let Some(stmt) = stmt_opt.as_mut() {
+                            let row = stmt.query_row(rusqlite::params![threshold_str], |r| {
+                                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                            }).ok();
+                            if let Some((name, last_played_str)) = row {
+                                let days = chrono::Utc::now()
+                                    .signed_duration_since(
+                                        chrono::DateTime::parse_from_rfc3339(&last_played_str)
+                                            .unwrap_or_else(|_| chrono::DateTime::parse_from_rfc3339("2000-01-01T00:00:00Z").unwrap())
+                                            .with_timezone(&chrono::Utc)
+                                    )
+                                    .num_days();
+                                let msg = format!("You haven't played {} in {} days", name, days);
+                                if let Some(win) = app.get_webview_window("main") {
+                                    let _ = win.emit("playtime-reminder", msg);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             let start_min = {
                 let db = app.state::<DbState>();
                 let lock = db.0.lock();
@@ -91,6 +147,18 @@ pub fn run() {
                     api.prevent_close();
                     let _ = window.hide();
                 }
+                let db = app.state::<DbState>();
+                let lock = db.0.lock();
+                if let Ok(conn) = lock {
+                    if let Ok(pos) = window.outer_position() {
+                        let _ = queries::set_setting(&conn, "window_x", &pos.x.to_string());
+                        let _ = queries::set_setting(&conn, "window_y", &pos.y.to_string());
+                    }
+                    if let Ok(size) = window.outer_size() {
+                        let _ = queries::set_setting(&conn, "window_width", &size.width.to_string());
+                        let _ = queries::set_setting(&conn, "window_height", &size.height.to_string());
+                    }
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -113,6 +181,8 @@ pub fn run() {
             games::get_sessions,
             games::reorder_games,
             games::fetch_hltb_data,
+            games::get_weekly_playtime,
+            games::batch_update_games,
             scanner::scan_steam_games,
             scanner::scan_epic_games,
             scanner::scan_gog_games,

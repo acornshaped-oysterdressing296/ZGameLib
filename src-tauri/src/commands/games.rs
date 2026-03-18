@@ -2,7 +2,7 @@ use tauri::State;
 use chrono::Utc;
 use uuid::Uuid;
 use crate::db::{DbState, queries};
-use crate::models::{Game, Note, Session, CreateGamePayload, UpdateGamePayload, HltbData};
+use crate::models::{Game, Note, Session, CreateGamePayload, UpdateGamePayload, HltbData, WeeklyPlaytime};
 
 #[tauri::command]
 pub fn get_all_games(state: State<DbState>) -> Result<Vec<Game>, String> {
@@ -64,6 +64,12 @@ pub fn update_game(state: State<DbState>, payload: UpdateGamePayload) -> Result<
     if let Some(ref tags) = payload.tags {
         if tags.len() > 100 { return Err("Maximum 100 tags allowed".to_string()); }
         if tags.iter().any(|t| t.len() > 50) { return Err("Each tag must be 50 characters or fewer".to_string()); }
+    }
+    if let Some(ref status) = payload.status {
+        const VALID_STATUSES: &[&str] = &["none", "backlog", "playing", "completed", "dropped", "on_hold"];
+        if !VALID_STATUSES.contains(&status.as_str()) {
+            return Err(format!("Invalid status '{}'. Must be one of: none, backlog, playing, completed, dropped, on_hold", status));
+        }
     }
 
     if let Some(name) = payload.name { game.name = name; }
@@ -320,4 +326,50 @@ pub fn get_sessions(state: State<DbState>, game_id: String) -> Result<Vec<Sessio
     .filter_map(|r| r.ok())
     .collect();
     Ok(sessions)
+}
+
+#[tauri::command]
+pub fn get_weekly_playtime(state: State<DbState>) -> Result<Vec<WeeklyPlaytime>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(
+        "SELECT strftime('%Y-%W', started_at) as week, SUM(duration_mins) as mins FROM sessions GROUP BY week ORDER BY week DESC LIMIT 12"
+    ).map_err(|e| e.to_string())?;
+    let mut rows: Vec<WeeklyPlaytime> = stmt.query_map([], |row| {
+        Ok(WeeklyPlaytime {
+            week: row.get(0)?,
+            mins: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+    rows.reverse();
+    Ok(rows)
+}
+
+#[tauri::command]
+pub fn batch_update_games(
+    state: State<DbState>,
+    ids: Vec<String>,
+    status: Option<String>,
+    rating: Option<f64>,
+    tags_to_add: Option<Vec<String>>,
+) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for id in &ids {
+        let mut game = match queries::get_game_by_id(&conn, id).map_err(|e| e.to_string())? {
+            Some(g) => g,
+            None => continue,
+        };
+        if let Some(ref s) = status { game.status = s.clone(); }
+        if let Some(r) = rating { game.rating = Some(r); }
+        if let Some(ref new_tags) = tags_to_add {
+            for t in new_tags {
+                if !game.tags.contains(t) { game.tags.push(t.clone()); }
+            }
+        }
+        queries::update_game(&conn, &game).map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
 }

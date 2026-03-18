@@ -51,21 +51,30 @@ fn is_pid_running(pid: u32) -> bool {
     out.contains('"')
 }
 
-fn finish_session(app: &AppHandle, game_id: &str, started_at: &str, elapsed_mins: i64) {
+fn finish_session(app: &AppHandle, game_id: &str, started_at: &str, elapsed_secs: u64) {
+    let elapsed_mins = (elapsed_secs / 60) as i64;
     let now = Utc::now().to_rfc3339();
     {
         let db = app.state::<DbState>();
         let lock = db.0.lock();
         if let Ok(conn) = lock {
-            let _ = conn.execute(
-                "UPDATE games SET playtime_mins = playtime_mins + ?1, last_played = ?2 WHERE id = ?3",
-                rusqlite::params![elapsed_mins, now, game_id],
-            );
             if elapsed_mins > 0 {
+                let _ = conn.execute(
+                    "UPDATE games SET playtime_mins = playtime_mins + ?1, last_played = ?2 WHERE id = ?3",
+                    rusqlite::params![elapsed_mins, now, game_id],
+                );
+            } else {
+                let _ = conn.execute(
+                    "UPDATE games SET last_played = ?1 WHERE id = ?2",
+                    rusqlite::params![now, game_id],
+                );
+            }
+            if elapsed_secs >= 30 {
                 let session_id = uuid::Uuid::new_v4().to_string();
+                let mins_to_save = elapsed_mins.max(1);
                 let _ = conn.execute(
                     "INSERT INTO sessions (id, game_id, started_at, ended_at, duration_mins) VALUES (?1, ?2, ?3, ?4, ?5)",
-                    rusqlite::params![session_id, game_id, started_at, now, elapsed_mins],
+                    rusqlite::params![session_id, game_id, started_at, now, mins_to_save],
                 );
             }
         }
@@ -120,9 +129,19 @@ pub fn launch_game(app: AppHandle, state: State<DbState>, id: String) -> Result<
     let mut child = child;
 
     std::thread::spawn(move || {
-        let _ = child.wait();
-        let elapsed_mins = start.elapsed().as_secs() as i64 / 60;
-        finish_session(&app_clone, &game_id, &started_at, elapsed_mins);
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            if start.elapsed().as_secs() > 86400 {
+                let _ = child.kill();
+                break;
+            }
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => continue,
+                Err(_) => break,
+            }
+        }
+        finish_session(&app_clone, &game_id, &started_at, start.elapsed().as_secs());
     });
 
     Ok(())
@@ -202,13 +221,14 @@ pub fn launch_steam_game(
                             return;
                         }
                     }
+                    let game_start = std::time::Instant::now();
                     loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
+                        if game_start.elapsed().as_secs() > 86400 { break; }
                         if !is_pid_running(pid) { break; }
                     }
                     pids.lock().unwrap_or_else(|e| e.into_inner()).remove(&pid);
-                    let elapsed_mins = start.elapsed().as_secs() as i64 / 60;
-                    finish_session(&app_clone, &gid, &started_at, elapsed_mins);
+                    finish_session(&app_clone, &gid, &started_at, game_start.elapsed().as_secs());
                 } else {
                     finish_session(&app_clone, &gid, &started_at, 0);
                 }
@@ -297,13 +317,14 @@ pub fn launch_epic_game(
                             return;
                         }
                     }
+                    let game_start = std::time::Instant::now();
                     loop {
                         std::thread::sleep(std::time::Duration::from_secs(5));
+                        if game_start.elapsed().as_secs() > 86400 { break; }
                         if !is_pid_running(pid) { break; }
                     }
                     pids.lock().unwrap_or_else(|e| e.into_inner()).remove(&pid);
-                    let elapsed_mins = start.elapsed().as_secs() as i64 / 60;
-                    finish_session(&app_clone, &gid, &started_at, elapsed_mins);
+                    finish_session(&app_clone, &gid, &started_at, game_start.elapsed().as_secs());
                 } else {
                     finish_session(&app_clone, &gid, &started_at, 0);
                 }

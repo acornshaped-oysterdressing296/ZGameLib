@@ -95,6 +95,20 @@ pub struct ImportResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FullExport {
+    pub version: u32,
+    pub games: Vec<Game>,
+    pub sessions: Vec<Session>,
+    pub notes: Vec<Note>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeeklyPlaytime {
+    pub week: String,
+    pub mins: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoverCandidate {
     pub name: String,
     pub app_id: String,
@@ -122,4 +136,5 @@ pub struct AppSettings {
     pub start_minimized: bool,
     pub close_to_tray: bool,
     pub autostart: bool,
+    pub playtime_reminders: bool,
 }
