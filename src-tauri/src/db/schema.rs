@@ -36,12 +36,26 @@ pub fn create_tables(conn: &Connection) -> anyhow::Result<()> {
             value TEXT NOT NULL
         );
 
-        CREATE INDEX IF NOT EXISTS idx_games_platform   ON games(platform);
-        CREATE INDEX IF NOT EXISTS idx_games_is_fav     ON games(is_favorite);
-        CREATE INDEX IF NOT EXISTS idx_games_status     ON games(status);
+        CREATE TABLE IF NOT EXISTS sessions (
+            id            TEXT PRIMARY KEY,
+            game_id       TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+            started_at    TEXT NOT NULL,
+            ended_at      TEXT NOT NULL,
+            duration_mins INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_games_platform    ON games(platform);
+        CREATE INDEX IF NOT EXISTS idx_games_is_fav      ON games(is_favorite);
+        CREATE INDEX IF NOT EXISTS idx_games_status      ON games(status);
         CREATE INDEX IF NOT EXISTS idx_games_last_played ON games(last_played);
-        CREATE INDEX IF NOT EXISTS idx_notes_game_id    ON notes(game_id);
+        CREATE INDEX IF NOT EXISTS idx_notes_game_id     ON notes(game_id);
+        CREATE INDEX IF NOT EXISTS idx_sessions_game_id  ON sessions(game_id);
         ",
     )?;
+    let _ = conn.execute("ALTER TABLE games ADD COLUMN deleted_at TEXT", []);
+    let _ = conn.execute("ALTER TABLE games ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE games ADD COLUMN custom_fields TEXT NOT NULL DEFAULT '{}'", []);
+    let _ = conn.execute("ALTER TABLE games ADD COLUMN hltb_main_mins INTEGER", []);
+    let _ = conn.execute("ALTER TABLE games ADD COLUMN hltb_extra_mins INTEGER", []);
     Ok(())
 }

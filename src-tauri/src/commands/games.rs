@@ -2,7 +2,7 @@ use tauri::State;
 use chrono::Utc;
 use uuid::Uuid;
 use crate::db::{DbState, queries};
-use crate::models::{Game, Note, CreateGamePayload, UpdateGamePayload};
+use crate::models::{Game, Note, Session, CreateGamePayload, UpdateGamePayload, HltbData};
 
 #[tauri::command]
 pub fn get_all_games(state: State<DbState>) -> Result<Vec<Game>, String> {
@@ -38,6 +38,11 @@ pub fn create_game(state: State<DbState>, payload: CreateGamePayload) -> Result<
         epic_app_name: payload.epic_app_name,
         tags: vec![],
         sort_order: 0,
+        deleted_at: None,
+        is_pinned: false,
+        custom_fields: std::collections::HashMap::new(),
+        hltb_main_mins: None,
+        hltb_extra_mins: None,
     };
     queries::insert_game(&conn, &game).map_err(|e| e.to_string())?;
     Ok(game)
@@ -50,6 +55,17 @@ pub fn update_game(state: State<DbState>, payload: UpdateGamePayload) -> Result<
         .map_err(|e| e.to_string())?
         .ok_or("Game not found")?;
 
+    if let Some(ref name) = payload.name {
+        if name.len() > 255 { return Err("Name must be 255 characters or fewer".to_string()); }
+    }
+    if let Some(ref desc) = payload.description {
+        if desc.len() > 10_000 { return Err("Description must be 10,000 characters or fewer".to_string()); }
+    }
+    if let Some(ref tags) = payload.tags {
+        if tags.len() > 100 { return Err("Maximum 100 tags allowed".to_string()); }
+        if tags.iter().any(|t| t.len() > 50) { return Err("Each tag must be 50 characters or fewer".to_string()); }
+    }
+
     if let Some(name) = payload.name { game.name = name; }
     if let Some(cover) = payload.cover_path { game.cover_path = Some(cover); }
     if let Some(desc) = payload.description { game.description = Some(desc); }
@@ -60,6 +76,7 @@ pub fn update_game(state: State<DbState>, payload: UpdateGamePayload) -> Result<
     if let Some(tags) = payload.tags { game.tags = tags; }
     if let Some(exe) = payload.exe_path { game.exe_path = Some(exe); }
     if let Some(dir) = payload.install_dir { game.install_dir = Some(dir); }
+    if let Some(cf) = payload.custom_fields { game.custom_fields = cf; }
 
     queries::update_game(&conn, &game).map_err(|e| e.to_string())?;
     Ok(game)
@@ -68,7 +85,43 @@ pub fn update_game(state: State<DbState>, payload: UpdateGamePayload) -> Result<
 #[tauri::command]
 pub fn delete_game(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let now = Utc::now().to_rfc3339();
+    queries::soft_delete_game(&conn, &id, &now).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn permanent_delete_game(state: State<DbState>, id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
     queries::delete_game(&conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn restore_game(state: State<DbState>, id: String) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    queries::restore_game(&conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn purge_trash(state: State<DbState>) -> Result<usize, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    queries::purge_trash(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_trashed_games(state: State<DbState>) -> Result<Vec<Game>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    queries::get_trashed_games(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn toggle_pinned(state: State<DbState>, id: String) -> Result<bool, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut game = queries::get_game_by_id(&conn, &id)
+        .map_err(|e| e.to_string())?
+        .ok_or("Game not found")?;
+    game.is_pinned = !game.is_pinned;
+    queries::update_game(&conn, &game).map_err(|e| e.to_string())?;
+    Ok(game.is_pinned)
 }
 
 #[tauri::command]
@@ -141,4 +194,130 @@ pub fn update_note(state: State<DbState>, id: String, content: String) -> Result
 pub fn delete_note(state: State<DbState>, id: String) -> Result<(), String> {
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     queries::delete_note(&conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn reorder_games(state: State<DbState>, ids: Vec<String>) -> Result<(), String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for (i, id) in ids.iter().enumerate() {
+        conn.execute(
+            "UPDATE games SET sort_order = ?1 WHERE id = ?2",
+            rusqlite::params![i as i64, id],
+        ).map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn fetch_hltb_data(state: State<DbState>, game_id: String, game_name: String) -> Result<Option<HltbData>, String> {
+    let raw = match ureq::get("https://howlongtobeat.com/")
+        .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .call()
+    {
+        Ok(r) => r.into_string().unwrap_or_default(),
+        Err(_) => return Ok(None),
+    };
+
+    let hash = {
+        let needle = "/api/search/";
+        raw.find(needle)
+            .and_then(|i| {
+                let after = &raw[i + needle.len()..];
+                let end = after.find('"').unwrap_or(after.len().min(20));
+                let h = &after[..end];
+                if h.len() >= 8 && h.len() <= 40 { Some(h.to_string()) } else { None }
+            })
+    };
+
+    let hash = match hash {
+        Some(h) => h,
+        None => return Ok(None),
+    };
+
+    let url = format!("https://howlongtobeat.com/api/search/{}", hash);
+    let body = serde_json::json!({
+        "searchType": "games",
+        "searchTerms": [game_name],
+        "searchPage": 1,
+        "size": 1,
+        "searchOptions": {
+            "games": {
+                "userId": 0,
+                "platform": "",
+                "sortCategory": "popular",
+                "rangeCategory": "main",
+                "rangeTime": {"min": null, "max": null},
+                "gameplay": {"perspective": "", "flow": "", "genre": "", "subGenre": ""},
+                "rangeYear": {"min": "", "max": ""},
+                "modifier": ""
+            },
+            "users": {"sortCategory": "postcount"},
+            "lists": {"sortCategory": "follows"},
+            "filter": "",
+            "sort": 0,
+            "randomizer": 0
+        }
+    });
+
+    let resp = match ureq::post(&url)
+        .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .set("Referer", "https://howlongtobeat.com/")
+        .set("Content-Type", "application/json")
+        .send_string(&body.to_string())
+    {
+        Ok(r) => r.into_string().unwrap_or_default(),
+        Err(_) => return Ok(None),
+    };
+
+    let json: serde_json::Value = match serde_json::from_str(&resp) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+
+    let entry = match json["data"].as_array().and_then(|a| a.first()) {
+        Some(e) => e.clone(),
+        None => return Ok(None),
+    };
+
+    let secs_to_mins = |v: &serde_json::Value| -> Option<i64> {
+        v.as_i64().filter(|&s| s > 0).map(|s| s / 60)
+    };
+
+    let data = HltbData {
+        main_mins: secs_to_mins(&entry["comp_main"]),
+        extra_mins: secs_to_mins(&entry["comp_plus"]),
+        complete_mins: secs_to_mins(&entry["comp_100"]),
+    };
+
+    {
+        let conn = state.0.lock().map_err(|e| e.to_string())?;
+        let _ = conn.execute(
+            "UPDATE games SET hltb_main_mins = ?1, hltb_extra_mins = ?2 WHERE id = ?3",
+            rusqlite::params![data.main_mins, data.extra_mins, game_id],
+        );
+    }
+
+    Ok(Some(data))
+}
+
+#[tauri::command]
+pub fn get_sessions(state: State<DbState>, game_id: String) -> Result<Vec<Session>, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(
+        "SELECT id, game_id, started_at, ended_at, duration_mins FROM sessions WHERE game_id = ?1 ORDER BY started_at DESC LIMIT 50"
+    ).map_err(|e| e.to_string())?;
+    let sessions = stmt.query_map(rusqlite::params![game_id], |row| {
+        Ok(Session {
+            id: row.get(0)?,
+            game_id: row.get(1)?,
+            started_at: row.get(2)?,
+            ended_at: row.get(3)?,
+            duration_mins: row.get(4)?,
+        })
+    }).map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+    Ok(sessions)
 }

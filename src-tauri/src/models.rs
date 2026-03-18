@@ -19,6 +19,14 @@ pub struct Game {
     pub epic_app_name: Option<String>,
     pub tags: Vec<String>,
     pub sort_order: i64,
+    pub deleted_at: Option<String>,
+    pub is_pinned: bool,
+    #[serde(default)]
+    pub custom_fields: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub hltb_main_mins: Option<i64>,
+    #[serde(default)]
+    pub hltb_extra_mins: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +62,23 @@ pub struct UpdateGamePayload {
     pub tags: Option<Vec<String>>,
     pub exe_path: Option<String>,
     pub install_dir: Option<String>,
+    pub custom_fields: Option<std::collections::HashMap<String, String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HltbData {
+    pub main_mins: Option<i64>,
+    pub extra_mins: Option<i64>,
+    pub complete_mins: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub id: String,
+    pub game_id: String,
+    pub started_at: String,
+    pub ended_at: String,
+    pub duration_mins: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

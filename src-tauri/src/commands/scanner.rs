@@ -216,6 +216,8 @@ fn find_steam_game_exe(install_dir: &str, game_name: &str) -> Option<String> {
     let mut best_shipping: Option<(std::path::PathBuf, u64)> = None;
     let mut best_root:     Option<(std::path::PathBuf, u64)> = None;
 
+    const MAX_WALK_ENTRIES: usize = 10_000;
+    let mut walk_count = 0usize;
     for entry in walkdir::WalkDir::new(install_dir)
         .max_depth(6)
         .into_iter()
@@ -229,6 +231,8 @@ fn find_steam_game_exe(install_dir: &str, game_name: &str) -> Option<String> {
         })
         .flatten()
     {
+        walk_count += 1;
+        if walk_count > MAX_WALK_ENTRIES { break; }
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("exe") { continue; }
 
@@ -306,8 +310,15 @@ fn download_image_to_cache(url: &str, filename: &str, app: &AppHandle) -> Option
                 log(app, "warn", "  CDN: read failed or empty response");
                 return None;
             }
-            if std::fs::write(&dest, &bytes).is_err() {
-                log(app, "warn", "  CDN: failed to write file to disk");
+            let tmp = dest.with_extension("tmp");
+            if std::fs::write(&tmp, &bytes).is_err() {
+                log(app, "warn", "  CDN: failed to write temp file to disk");
+                let _ = std::fs::remove_file(&tmp);
+                return None;
+            }
+            if std::fs::rename(&tmp, &dest).is_err() {
+                log(app, "warn", "  CDN: failed to finalize cover file");
+                let _ = std::fs::remove_file(&tmp);
                 return None;
             }
             Some(dest.to_string_lossy().to_string())
@@ -480,6 +491,11 @@ fn scan_steam_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<ru
             epic_app_name: None,
             tags: vec![],
             sort_order: 0,
+            deleted_at: None,
+            is_pinned: false,
+            custom_fields: std::collections::HashMap::new(),
+            hltb_main_mins: None,
+            hltb_extra_mins: None,
         };
         if queries::insert_game(&conn, &game).is_ok() {
             added += 1;
@@ -599,6 +615,11 @@ fn scan_epic_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rus
             epic_app_name: Some(entry.app_name),
             tags: vec![],
             sort_order: 0,
+            deleted_at: None,
+            is_pinned: false,
+            custom_fields: std::collections::HashMap::new(),
+            hltb_main_mins: None,
+            hltb_extra_mins: None,
         };
         if queries::insert_game(&conn, &game).is_ok() {
             added += 1;
@@ -735,6 +756,10 @@ fn scan_gog_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rusq
             last_played: None, date_added: now.clone(),
             steam_app_id: None, epic_app_name: None,
             tags: vec![], sort_order: 0,
+            deleted_at: None, is_pinned: false,
+            custom_fields: std::collections::HashMap::new(),
+            hltb_main_mins: None,
+            hltb_extra_mins: None,
         };
         if queries::insert_game(&conn, &game).is_ok() { added += 1; }
     }
@@ -1008,6 +1033,11 @@ fn scan_folder_for_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mut
             epic_app_name: None,
             tags: vec![],
             sort_order: 0,
+            deleted_at: None,
+            is_pinned: false,
+            custom_fields: std::collections::HashMap::new(),
+            hltb_main_mins: None,
+            hltb_extra_mins: None,
         };
         if queries::insert_game(&conn, &game).is_ok() {
             added += 1;
@@ -1105,21 +1135,23 @@ fn extract_exe_icon_internal(exe_path: &str) -> Option<String> {
 
     std::fs::create_dir_all(&data_dir).ok()?;
 
-    let hash = format!("{:x}", fnv_hash(exe_path));
+    let mtime = std::fs::metadata(exe_path)
+        .and_then(|m| m.modified())
+        .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs())
+        .unwrap_or(0);
+    let hash = format!("{:x}", fnv_hash(&format!("{}:{}", exe_path, mtime)));
     let dest = data_dir.join(format!("{}.png", hash));
 
     if dest.exists() {
         return Some(dest.to_string_lossy().to_string());
     }
 
-    let ps_script = format!(
-        r#"Add-Type -AssemblyName System.Drawing; $icon = [System.Drawing.Icon]::ExtractAssociatedIcon('{}'); if ($icon) {{ $bmp = $icon.ToBitmap(); $bmp.Save('{}', [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose(); $icon.Dispose() }}"#,
-        exe_path.replace("'", "''"),
-        dest.to_string_lossy().replace("'", "''")
-    );
+    let ps_script = r#"Add-Type -AssemblyName System.Drawing; $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($env:ZGAMELIB_EXE_PATH); if ($icon) { $bmp = $icon.ToBitmap(); $bmp.Save($env:ZGAMELIB_DEST_PATH, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose(); $icon.Dispose() }"#;
 
     Command::new("powershell.exe")
-        .args(["-ExecutionPolicy", "Bypass", "-Command", &ps_script])
+        .args(["-ExecutionPolicy", "Bypass", "-Command", ps_script])
+        .env("ZGAMELIB_EXE_PATH", exe_path)
+        .env("ZGAMELIB_DEST_PATH", dest.to_string_lossy().as_ref())
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
@@ -1234,4 +1266,109 @@ pub fn read_image_base64(file_path: String) -> Result<String, String> {
 
     let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
     Ok(format!("data:{};base64,{}", mime, b64))
+}
+
+fn download_cover_to_file(url: &str, dest: &std::path::Path) -> Result<(), String> {
+    use std::io::Read;
+    let response = ureq::get(url)
+        .timeout(std::time::Duration::from_secs(15))
+        .call()
+        .map_err(|e| e.to_string())?;
+    let mut bytes = Vec::new();
+    response.into_reader().read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+    if bytes.is_empty() {
+        return Err("Empty response".to_string());
+    }
+    let tmp = dest.with_extension("tmp");
+    std::fs::write(&tmp, &bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, dest).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct FetchCoversResult {
+    pub updated: usize,
+    pub failed: usize,
+}
+
+#[tauri::command]
+pub fn fetch_missing_covers(state: State<DbState>) -> Result<FetchCoversResult, String> {
+    let data_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("ZGameLib")
+        .join("covers");
+    std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+
+    let games: Vec<(String, String, Option<String>, Option<String>)> = {
+        let conn = state.0.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT id, name, steam_app_id, epic_app_name FROM games WHERE (cover_path IS NULL OR cover_path = '') AND deleted_at IS NULL"
+        ).map_err(|e| e.to_string())?;
+        let result: Vec<_> = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+        result
+    };
+
+    let mut updated = 0usize;
+    let mut failed = 0usize;
+
+    for (id, name, steam_app_id, _epic_app_name) in &games {
+        let url = if let Some(app_id) = steam_app_id.as_deref().filter(|s| !s.is_empty()) {
+            format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{}/library_600x900_2x.jpg", app_id)
+        } else {
+            let search_url = format!(
+                "https://steamcommunity.com/actions/SearchApps/{}",
+                name.trim()
+            );
+            let Ok(resp) = ureq::get(&search_url)
+                .timeout(std::time::Duration::from_secs(10))
+                .call() else {
+                failed += 1;
+                continue;
+            };
+            let mut body = String::new();
+            use std::io::Read;
+            if resp.into_reader().read_to_string(&mut body).is_err() {
+                failed += 1;
+                continue;
+            }
+            let Ok(candidates) = serde_json::from_str::<Vec<CoverCandidate>>(&body) else {
+                failed += 1;
+                continue;
+            };
+            let Some(first) = candidates.into_iter().next() else {
+                failed += 1;
+                continue;
+            };
+            first.cover_url
+        };
+
+        let dest = data_dir.join(format!("{}.jpg", id));
+        if download_cover_to_file(&url, &dest).is_err() {
+            failed += 1;
+            continue;
+        }
+
+        let cover_path = dest.to_string_lossy().to_string();
+        let conn = state.0.lock().map_err(|e| e.to_string())?;
+        if conn.execute(
+            "UPDATE games SET cover_path = ?1 WHERE id = ?2",
+            rusqlite::params![cover_path, id],
+        ).is_err() {
+            failed += 1;
+            continue;
+        }
+        updated += 1;
+    }
+
+    Ok(FetchCoversResult { updated, failed })
 }

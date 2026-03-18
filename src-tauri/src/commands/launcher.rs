@@ -51,7 +51,7 @@ fn is_pid_running(pid: u32) -> bool {
     out.contains('"')
 }
 
-fn finish_session(app: &AppHandle, game_id: &str, elapsed_mins: i64) {
+fn finish_session(app: &AppHandle, game_id: &str, started_at: &str, elapsed_mins: i64) {
     let now = Utc::now().to_rfc3339();
     {
         let db = app.state::<DbState>();
@@ -61,6 +61,13 @@ fn finish_session(app: &AppHandle, game_id: &str, elapsed_mins: i64) {
                 "UPDATE games SET playtime_mins = playtime_mins + ?1, last_played = ?2 WHERE id = ?3",
                 rusqlite::params![elapsed_mins, now, game_id],
             );
+            if elapsed_mins > 0 {
+                let session_id = uuid::Uuid::new_v4().to_string();
+                let _ = conn.execute(
+                    "INSERT INTO sessions (id, game_id, started_at, ended_at, duration_mins) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    rusqlite::params![session_id, game_id, started_at, now, elapsed_mins],
+                );
+            }
         }
     }
     let _ = app.emit("game-session-ended", game_id);
@@ -109,12 +116,13 @@ pub fn launch_game(app: AppHandle, state: State<DbState>, id: String) -> Result<
     let app_clone = app.clone();
     let game_id = id.clone();
     let start = std::time::Instant::now();
+    let started_at = now.clone();
     let mut child = child;
 
     std::thread::spawn(move || {
         let _ = child.wait();
         let elapsed_mins = start.elapsed().as_secs() as i64 / 60;
-        finish_session(&app_clone, &game_id, elapsed_mins);
+        finish_session(&app_clone, &game_id, &started_at, elapsed_mins);
     });
 
     Ok(())
@@ -164,6 +172,7 @@ pub fn launch_steam_game(
         let app_clone = app.clone();
         let gid = game_id.clone();
         let pids = active_pids.0.clone();
+        let started_at = now.clone();
 
         std::thread::spawn(move || {
             #[cfg(windows)]
@@ -199,7 +208,9 @@ pub fn launch_steam_game(
                     }
                     pids.lock().unwrap_or_else(|e| e.into_inner()).remove(&pid);
                     let elapsed_mins = start.elapsed().as_secs() as i64 / 60;
-                    finish_session(&app_clone, &gid, elapsed_mins);
+                    finish_session(&app_clone, &gid, &started_at, elapsed_mins);
+                } else {
+                    finish_session(&app_clone, &gid, &started_at, 0);
                 }
             }
         });
@@ -256,6 +267,7 @@ pub fn launch_epic_game(
         let app_clone = app.clone();
         let gid = game_id.clone();
         let pids = active_pids.0.clone();
+        let started_at = now.clone();
 
         std::thread::spawn(move || {
             #[cfg(windows)]
@@ -291,7 +303,9 @@ pub fn launch_epic_game(
                     }
                     pids.lock().unwrap_or_else(|e| e.into_inner()).remove(&pid);
                     let elapsed_mins = start.elapsed().as_secs() as i64 / 60;
-                    finish_session(&app_clone, &gid, elapsed_mins);
+                    finish_session(&app_clone, &gid, &started_at, elapsed_mins);
+                } else {
+                    finish_session(&app_clone, &gid, &started_at, 0);
                 }
             }
         });

@@ -116,6 +116,46 @@ pub fn export_library(state: State<DbState>) -> Result<String, String> {
     serde_json::to_string_pretty(&games).map_err(|e| e.to_string())
 }
 
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+#[tauri::command]
+pub fn export_library_csv(state: State<DbState>) -> Result<String, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let games = crate::db::queries::get_all_games(&conn).map_err(|e| e.to_string())?;
+    let mut csv = String::from("id,name,platform,status,rating,playtime_mins,date_added,is_favorite,tags\n");
+    for g in &games {
+        let tags = g.tags.join("|");
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{}\n",
+            csv_escape(&g.id),
+            csv_escape(&g.name),
+            csv_escape(&g.platform),
+            csv_escape(&g.status),
+            g.rating.map(|r| r.to_string()).unwrap_or_default(),
+            g.playtime_mins,
+            csv_escape(&g.date_added),
+            g.is_favorite,
+            csv_escape(&tags),
+        ));
+    }
+    Ok(csv)
+}
+
+#[tauri::command]
+pub fn export_games_by_ids(state: State<DbState>, ids: Vec<String>) -> Result<String, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let games = crate::db::queries::get_all_games(&conn).map_err(|e| e.to_string())?;
+    let id_set: std::collections::HashSet<String> = ids.into_iter().collect();
+    let filtered: Vec<_> = games.into_iter().filter(|g| id_set.contains(&g.id)).collect();
+    serde_json::to_string_pretty(&filtered).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn save_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
@@ -136,4 +176,12 @@ pub fn check_for_update(ts: u64) -> Result<serde_json::Value, String> {
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn is_portable_mode() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("portable.flag").exists()))
+        .unwrap_or(false)
 }
