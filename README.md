@@ -29,11 +29,11 @@ Track, organize, rate and launch every game you own — Steam, Epic, GOG, and cu
 
 ## Preview
 
-> Recorded on v0.3.0. Newer versions include per-page search, mod loader, cleaner layout, and more improvements.
+> Recorded on v0.7.0. Newer versions include per-page search, mod loader, cleaner layout, and more improvements.
 
 <div align="center">
 
-[![ZGameLib Preview](https://img.youtube.com/vi/rlqUUqAPOxU/maxresdefault.jpg)](https://www.youtube.com/watch?v=rlqUUqAPOxU)
+[![ZGameLib Preview](https://img.youtube.com/vi/4L1U4SOJrQg/maxresdefault.jpg)](https://www.youtube.com/watch?v=4L1U4SOJrQg)
 
 </div>
 
