@@ -5,7 +5,7 @@ mod commands;
 use db::{DbState, init_db, queries};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
-use commands::{games, scanner, launcher, settings, modloader, collections};
+use commands::{games, scanner, launcher, settings, modloader, collections, logger};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -14,6 +14,7 @@ use tauri::{
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    logger::init();
     let conn = init_db().expect("Failed to initialize database");
 
     tauri::Builder::default()
@@ -222,6 +223,9 @@ pub fn run() {
             settings::check_for_update,
             settings::open_url,
             settings::is_portable_mode,
+            settings::sync_steam_playtime,
+            settings::pull_uninstalled_steam_games,
+            logger::get_log_contents,
             modloader::check_modloader_status,
             modloader::install_bepinex,
             modloader::uninstall_bepinex,

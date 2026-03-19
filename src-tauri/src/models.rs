@@ -37,6 +37,8 @@ pub struct Game {
     pub release_year: Option<i64>,
     #[serde(default)]
     pub igdb_skipped: bool,
+    #[serde(default)]
+    pub not_installed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -194,4 +196,32 @@ pub struct AppSettings {
     pub igdb_client_secret: Option<String>,
     #[serde(default)]
     pub custom_themes: String,
+    #[serde(default)]
+    pub pagination_enabled: bool,
+    #[serde(default = "default_page_size")]
+    pub pagination_page_size: u32,
+    #[serde(default)]
+    pub steam_api_key: Option<String>,
+    #[serde(default)]
+    pub steam_id_64: Option<String>,
+    #[serde(default = "default_true")]
+    pub exclude_idle_time: bool,
+    #[serde(default)]
+    pub include_uninstalled_steam: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PullUninstalledResult {
+    pub added: usize,
+    pub skipped: usize,
+}
+
+fn default_page_size() -> u32 { 24 }
+
+fn default_true() -> bool { true }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SteamSyncResult {
+    pub updated: usize,
+    pub skipped: usize,
 }

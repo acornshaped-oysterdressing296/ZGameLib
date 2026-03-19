@@ -48,6 +48,7 @@ pub fn create_game(state: State<DbState>, payload: CreateGamePayload) -> Result<
         publisher: None,
         release_year: None,
         igdb_skipped: false,
+        not_installed: false,
     };
     queries::insert_game(&conn, &game).map_err(|e| e.to_string())?;
     Ok(game)

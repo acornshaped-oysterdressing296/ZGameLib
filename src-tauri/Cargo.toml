@@ -1,6 +1,6 @@
 [package]
 name = "zgamelib"
-version = "0.8.0"
+version = "0.9.0"
 description = "ZGameLib - Personal Game Library"
 authors = ["TheHolyOneZ"]
 license = "MIT"
@@ -36,6 +36,7 @@ base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
+windows = { version = "0.58", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
 
 [features]
 default = ["custom-protocol"]

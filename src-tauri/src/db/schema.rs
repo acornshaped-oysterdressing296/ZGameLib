@@ -62,6 +62,7 @@ pub fn create_tables(conn: &Connection) -> anyhow::Result<()> {
     let _ = conn.execute("ALTER TABLE games ADD COLUMN publisher TEXT", []);
     let _ = conn.execute("ALTER TABLE games ADD COLUMN release_year INTEGER", []);
     let _ = conn.execute("ALTER TABLE games ADD COLUMN igdb_skipped INTEGER NOT NULL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE games ADD COLUMN not_installed INTEGER NOT NULL DEFAULT 0", []);
 
     conn.execute_batch(
         "

@@ -460,23 +460,28 @@ fn scan_steam_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<ru
     let mut skipped = 0;
 
     let mut steam_stmt = conn.prepare(
-        "SELECT steam_app_id, id, cover_path FROM games WHERE steam_app_id IS NOT NULL AND deleted_at IS NULL"
+        "SELECT steam_app_id, id, cover_path, COALESCE(not_installed, 0) FROM games WHERE steam_app_id IS NOT NULL AND deleted_at IS NULL"
     ).map_err(|e| e.to_string())?;
-    let steam_existing: std::collections::HashMap<String, (String, Option<String>)> =
-        steam_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?)))
+    let steam_existing: std::collections::HashMap<String, (String, Option<String>, bool)> =
+        steam_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?, r.get::<_, i64>(3)?)))
             .map_err(|e| e.to_string())?
             .filter_map(|r| r.ok())
-            .map(|(app_id, id, cover)| (app_id, (id, cover)))
+            .map(|(app_id, id, cover, not_installed)| (app_id, (id, cover, not_installed != 0)))
             .collect();
     drop(steam_stmt);
 
     for entry in entries {
-        if let Some((existing_id, _)) = steam_existing.get(&entry.app_id) {
+        if let Some((existing_id, _, was_uninstalled)) = steam_existing.get(&entry.app_id) {
             let existing_id = existing_id.clone();
             if let Some(ref cover) = entry.cover {
                 let _ = queries::update_cover_path(&conn, &existing_id, cover);
             }
-            if let Some(ref exe) = entry.exe_path {
+            if *was_uninstalled {
+                let _ = conn.execute(
+                    "UPDATE games SET not_installed = 0, exe_path = ?1, install_dir = ?2 WHERE id = ?3",
+                    rusqlite::params![entry.exe_path, entry.install_dir, existing_id],
+                );
+            } else if let Some(ref exe) = entry.exe_path {
                 let _ = conn.execute(
                     "UPDATE games SET exe_path = ?1 WHERE id = ?2 AND (exe_path IS NULL OR exe_path = '')",
                     rusqlite::params![exe, existing_id],
@@ -513,6 +518,7 @@ fn scan_steam_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<ru
             publisher: None,
             release_year: None,
             igdb_skipped: false,
+            not_installed: false,
         };
         if queries::insert_game(&conn, &game).is_ok() {
             added += 1;
@@ -654,6 +660,7 @@ fn scan_epic_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rus
             publisher: None,
             release_year: None,
             igdb_skipped: false,
+            not_installed: false,
         };
         if queries::insert_game(&conn, &game).is_ok() {
             added += 1;
@@ -803,6 +810,7 @@ fn scan_gog_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mutex<rusq
             publisher: None,
             release_year: None,
             igdb_skipped: false,
+            not_installed: false,
         };
         if queries::insert_game(&conn, &game).is_ok() { added += 1; }
     }
@@ -1086,6 +1094,7 @@ fn scan_folder_for_games_inner(app: AppHandle, db: std::sync::Arc<std::sync::Mut
             publisher: None,
             release_year: None,
             igdb_skipped: false,
+            not_installed: false,
         };
         if queries::insert_game(&conn, &game).is_ok() {
             added += 1;

@@ -1,6 +1,6 @@
 use tauri::State;
 use crate::db::{DbState, queries};
-use crate::models::{AppSettings, StatusConfig, ImportResult, Game, Session, Note, FullExport, CollectionGameEntry};
+use crate::models::{AppSettings, StatusConfig, ImportResult, Game, Session, Note, FullExport, CollectionGameEntry, SteamSyncResult, PullUninstalledResult};
 
 const DEFAULT_STATUSES: &str = r##"[
     {"key":"playing","label":"Playing","color":"#4ade80"},
@@ -43,6 +43,16 @@ pub fn get_settings(state: State<DbState>) -> Result<AppSettings, String> {
         igdb_client_id: queries::get_setting(&conn, "igdb_client_id").filter(|v| !v.is_empty()),
         igdb_client_secret: queries::get_setting(&conn, "igdb_client_secret").filter(|v| !v.is_empty()),
         custom_themes: queries::get_setting(&conn, "custom_themes").unwrap_or_else(|| "[]".to_string()),
+        pagination_enabled: queries::get_setting(&conn, "pagination_enabled")
+            .map(|v| v == "true").unwrap_or(false),
+        pagination_page_size: queries::get_setting(&conn, "pagination_page_size")
+            .and_then(|v| v.parse().ok()).unwrap_or(24),
+        steam_api_key: queries::get_setting(&conn, "steam_api_key").filter(|v| !v.is_empty()),
+        steam_id_64: queries::get_setting(&conn, "steam_id_64").filter(|v| !v.is_empty()),
+        exclude_idle_time: queries::get_setting(&conn, "exclude_idle_time")
+            .map(|v| v != "false").unwrap_or(true),
+        include_uninstalled_steam: queries::get_setting(&conn, "include_uninstalled_steam")
+            .map(|v| v == "true").unwrap_or(false),
     })
 }
 
@@ -59,7 +69,7 @@ pub fn save_settings(state: State<DbState>, settings: AppSettings) -> Result<(),
     }
     let statuses_json = serde_json::to_string(&settings.custom_statuses).map_err(|e| e.to_string())?;
     queries::set_setting(&conn, "custom_statuses", &statuses_json).map_err(|e| e.to_string())?;
-    let grid_columns = settings.grid_columns.clamp(1, 8);
+    let grid_columns = settings.grid_columns.clamp(0, 8);
     queries::set_setting(&conn, "grid_columns", &grid_columns.to_string()).map_err(|e| e.to_string())?;
     queries::set_setting(&conn, "auto_scan", if settings.auto_scan { "true" } else { "false" }).map_err(|e| e.to_string())?;
     queries::set_setting(&conn, "show_playtime_on_cards", if settings.show_playtime_on_cards { "true" } else { "false" }).map_err(|e| e.to_string())?;
@@ -75,6 +85,17 @@ pub fn save_settings(state: State<DbState>, settings: AppSettings) -> Result<(),
         queries::set_setting(&conn, "igdb_client_secret", v).map_err(|e| e.to_string())?;
     }
     queries::set_setting(&conn, "custom_themes", &settings.custom_themes).map_err(|e| e.to_string())?;
+    queries::set_setting(&conn, "pagination_enabled", if settings.pagination_enabled { "true" } else { "false" }).map_err(|e| e.to_string())?;
+    let page_size = settings.pagination_page_size.clamp(6, 200);
+    queries::set_setting(&conn, "pagination_page_size", &page_size.to_string()).map_err(|e| e.to_string())?;
+    if let Some(ref v) = settings.steam_api_key {
+        queries::set_setting(&conn, "steam_api_key", v).map_err(|e| e.to_string())?;
+    }
+    if let Some(ref v) = settings.steam_id_64 {
+        queries::set_setting(&conn, "steam_id_64", v).map_err(|e| e.to_string())?;
+    }
+    queries::set_setting(&conn, "exclude_idle_time", if settings.exclude_idle_time { "true" } else { "false" }).map_err(|e| e.to_string())?;
+    queries::set_setting(&conn, "include_uninstalled_steam", if settings.include_uninstalled_steam { "true" } else { "false" }).map_err(|e| e.to_string())?;
 
     #[cfg(windows)]
     {
@@ -292,4 +313,148 @@ pub fn is_portable_mode() -> bool {
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("portable.flag").exists()))
         .unwrap_or(false)
+}
+
+#[tauri::command]
+pub fn sync_steam_playtime(state: State<DbState>, api_key: String, steam_id: String) -> Result<SteamSyncResult, String> {
+    let url = format!(
+        "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1?key={}&steamid={}&include_played_free_games=1&format=json",
+        api_key, steam_id
+    );
+    let response = ureq::get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .call()
+        .map_err(|e| e.to_string())?;
+    let body = response.into_string().map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+
+    let games_arr = json["response"]["games"]
+        .as_array()
+        .ok_or("No games data returned from Steam API")?;
+
+    let steam_map: std::collections::HashMap<String, i64> = games_arr
+        .iter()
+        .filter_map(|g| {
+            let appid = g["appid"].as_i64()?.to_string();
+            let playtime = g["playtime_forever"].as_i64().unwrap_or(0);
+            Some((appid, playtime))
+        })
+        .collect();
+
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(
+        "SELECT id, steam_app_id, playtime_mins FROM games WHERE steam_app_id IS NOT NULL AND deleted_at IS NULL"
+    ).map_err(|e| e.to_string())?;
+
+    let rows: Vec<(String, String, i64)> = stmt.query_map([], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?))
+    }).map_err(|e| e.to_string())?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    drop(stmt);
+
+    let mut updated = 0usize;
+    let mut skipped = 0usize;
+
+    for (id, app_id, local_playtime) in rows {
+        if let Some(&steam_playtime) = steam_map.get(&app_id) {
+            if steam_playtime > local_playtime {
+                conn.execute(
+                    "UPDATE games SET playtime_mins = ?1 WHERE id = ?2",
+                    rusqlite::params![steam_playtime, id],
+                ).map_err(|e| e.to_string())?;
+                updated += 1;
+            } else {
+                skipped += 1;
+            }
+        } else {
+            skipped += 1;
+        }
+    }
+
+    Ok(SteamSyncResult { updated, skipped })
+}
+
+#[tauri::command]
+pub fn pull_uninstalled_steam_games(state: State<DbState>, api_key: String, steam_id: String) -> Result<PullUninstalledResult, String> {
+    let url = format!(
+        "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1?key={}&steamid={}&include_played_free_games=1&include_appinfo=1&format=json",
+        api_key, steam_id
+    );
+    let response = ureq::get(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .call()
+        .map_err(|e| e.to_string())?;
+    let body = response.into_string().map_err(|e| e.to_string())?;
+    let json: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
+
+    let games_arr = json["response"]["games"]
+        .as_array()
+        .ok_or("No games returned — verify your API key and SteamID64 are correct")?;
+
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut added = 0usize;
+    let mut skipped = 0usize;
+
+    for entry in games_arr {
+        let appid = match entry["appid"].as_i64() {
+            Some(id) => id.to_string(),
+            None => { skipped += 1; continue; }
+        };
+        let name = match entry["name"].as_str() {
+            Some(n) if !n.is_empty() => n.to_string(),
+            _ => { skipped += 1; continue; }
+        };
+        let playtime = entry["playtime_forever"].as_i64().unwrap_or(0);
+
+        let exists: bool = conn.query_row(
+            "SELECT COUNT(*) FROM games WHERE steam_app_id = ?1 AND deleted_at IS NULL",
+            rusqlite::params![appid],
+            |r| r.get::<_, i64>(0),
+        ).unwrap_or(0) > 0;
+
+        if exists { skipped += 1; continue; }
+
+        let cover = format!("https://cdn.steamstatic.com/steam/apps/{}/library_600x900.jpg", appid);
+
+        let game = Game {
+            id: uuid::Uuid::new_v4().to_string(),
+            name,
+            platform: "steam".to_string(),
+            exe_path: None,
+            install_dir: None,
+            cover_path: Some(cover),
+            description: None,
+            rating: None,
+            status: "none".to_string(),
+            is_favorite: false,
+            playtime_mins: playtime,
+            last_played: None,
+            date_added: now.clone(),
+            steam_app_id: Some(appid),
+            epic_app_name: None,
+            tags: vec![],
+            sort_order: 0,
+            deleted_at: None,
+            is_pinned: false,
+            custom_fields: std::collections::HashMap::new(),
+            hltb_main_mins: None,
+            hltb_extra_mins: None,
+            genre: None,
+            developer: None,
+            publisher: None,
+            release_year: None,
+            igdb_skipped: false,
+            not_installed: true,
+        };
+        if queries::insert_game(&conn, &game).is_ok() {
+            added += 1;
+        } else {
+            skipped += 1;
+        }
+    }
+
+    Ok(PullUninstalledResult { added, skipped })
 }

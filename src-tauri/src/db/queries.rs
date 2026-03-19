@@ -37,6 +37,7 @@ fn row_to_game(row: &rusqlite::Row) -> rusqlite::Result<Game> {
         publisher: row.get(24).unwrap_or(None),
         release_year: row.get(25).unwrap_or(None),
         igdb_skipped: row.get::<_, i64>(26).unwrap_or(0) != 0,
+        not_installed: row.get::<_, i64>(27).unwrap_or(0) != 0,
     })
 }
 
@@ -47,7 +48,7 @@ const GAME_SELECT: &str =
             COALESCE(is_pinned, 0), deleted_at, COALESCE(custom_fields, '{}'),
             hltb_main_mins, hltb_extra_mins,
             genre, developer, publisher, release_year,
-            COALESCE(igdb_skipped, 0)
+            COALESCE(igdb_skipped, 0), COALESCE(not_installed, 0)
      FROM games";
 
 pub fn get_all_games(conn: &Connection) -> anyhow::Result<Vec<Game>> {
@@ -105,8 +106,9 @@ pub fn insert_game(conn: &Connection, game: &Game) -> anyhow::Result<()> {
         "INSERT INTO games (id, name, platform, exe_path, install_dir, cover_path, description,
                             rating, is_favorite, status, playtime_mins, last_played, date_added,
                             steam_app_id, epic_app_name, sort_order, tags, is_pinned, custom_fields,
-                            hltb_main_mins, hltb_extra_mins, genre, developer, publisher, release_year)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25)",
+                            hltb_main_mins, hltb_extra_mins, genre, developer, publisher, release_year,
+                            not_installed)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26)",
         params![
             game.id, game.name, game.platform, game.exe_path, game.install_dir,
             game.cover_path, game.description, game.rating,
@@ -114,7 +116,8 @@ pub fn insert_game(conn: &Connection, game: &Game) -> anyhow::Result<()> {
             game.last_played, game.date_added, game.steam_app_id, game.epic_app_name,
             game.sort_order, tags, game.is_pinned as i64, cf,
             game.hltb_main_mins, game.hltb_extra_mins,
-            game.genre, game.developer, game.publisher, game.release_year
+            game.genre, game.developer, game.publisher, game.release_year,
+            game.not_installed as i64
         ],
     )?;
     Ok(())
@@ -128,14 +131,16 @@ pub fn update_game(conn: &Connection, game: &Game) -> anyhow::Result<()> {
                           is_favorite=?6, status=?7, playtime_mins=?8, last_played=?9,
                           tags=?10, exe_path=?11, install_dir=?12, is_pinned=?13,
                           custom_fields=?14, hltb_main_mins=?15, hltb_extra_mins=?16,
-                          genre=?17, developer=?18, publisher=?19, release_year=?20
+                          genre=?17, developer=?18, publisher=?19, release_year=?20,
+                          not_installed=?21
          WHERE id=?1",
         params![
             game.id, game.name, game.cover_path, game.description, game.rating,
             game.is_favorite as i64, game.status, game.playtime_mins,
             game.last_played, tags, game.exe_path, game.install_dir,
             game.is_pinned as i64, cf, game.hltb_main_mins, game.hltb_extra_mins,
-            game.genre, game.developer, game.publisher, game.release_year
+            game.genre, game.developer, game.publisher, game.release_year,
+            game.not_installed as i64
         ],
     )?;
     Ok(())
