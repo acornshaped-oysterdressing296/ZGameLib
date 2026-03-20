@@ -45,11 +45,11 @@ The milestone release. v1.0.0 is focused on **Polish & Discovery** — making ZG
 
 ## Preview
 
-> Recorded on v0.3.0. v1.0.0 includes onboarding tour, Year in Review, smart recommendations, and many more improvements.
+> Recorded on v0.7.0. v1.0.0 includes onboarding tour, Year in Review, smart recommendations, and many more improvements.
 
 <div align="center">
 
-[![ZGameLib Preview](https://img.youtube.com/vi/rlqUUqAPOxU/maxresdefault.jpg)](https://www.youtube.com/watch?v=rlqUUqAPOxU)
+[![ZGameLib Preview](https://img.youtube.com/vi/4L1U4SOJrQg/maxresdefault.jpg)](https://www.youtube.com/watch?v=4L1U4SOJrQg)
 
 </div>
 
