@@ -39,6 +39,8 @@ export const api = {
   launchSteamGame: (appId: string, gameId: string) => invoke<void>("launch_steam_game", { appId, gameId }),
   launchEpicGame: (appName: string, gameId: string) => invoke<void>("launch_epic_game", { appName, gameId }),
   openGameFolder: (id: string) => invoke<void>("open_game_folder", { id }),
+  stopTracking: () => invoke<void>("stop_tracking"),
+  stopGame: () => invoke<void>("stop_game"),
 
   getSettings: () => invoke<AppSettings>("get_settings"),
   saveSettings: (settings: AppSettings) => invoke<void>("save_settings", { settings }),
@@ -86,4 +88,5 @@ export const api = {
   getLogContents: () => invoke<string[]>("get_log_contents"),
   saveSetting: (key: string, value: string) => invoke<void>("save_setting", { key, value }),
   getYearInReview: (year: number) => invoke<YearInReview>("get_year_in_review", { year }),
+
 };

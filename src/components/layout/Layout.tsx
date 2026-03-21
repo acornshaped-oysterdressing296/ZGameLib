@@ -1,6 +1,6 @@
 import { Outlet, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "@/lib/tauri";
@@ -183,6 +183,7 @@ function AppBehavior() {
     queryFn: () => api.getSettings(),
     staleTime: 5 * 60 * 1000,
   });
+  const qc = useQueryClient();
   const { scan } = useScan();
   const { pullUninstalled } = usePullUninstalled();
   const hasAutoScanned = useRef(false);
@@ -212,12 +213,12 @@ function AppBehavior() {
   }, []);
 
   useEffect(() => {
-    const promise = listen<string>("game-session-ended", async () => {
-      const games = await api.getAllGames();
-      if (games) useGameStore.getState().setGames(games);
+    const promise = listen<string>("game-session-ended", () => {
+      qc.invalidateQueries({ queryKey: ["games"] });
+      useUIStore.getState().setActiveGameId(null);
     });
     return () => { promise.then((f) => f()); };
-  }, []);
+  }, [qc]);
 
   useEffect(() => {
     const promise = listen<string>("playtime-reminder", (event) => {

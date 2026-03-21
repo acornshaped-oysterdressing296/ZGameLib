@@ -6,6 +6,7 @@ import { useUIStore } from "@/store/useUIStore";
 import { useGames } from "@/hooks/useGames";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/tauri";
+import { useLaunchGame } from "@/lib/useLaunchGame";
 import type { Game, Collection } from "@/lib/types";
 
 interface MenuPosition { x: number; y: number; }
@@ -169,6 +170,7 @@ function ContextMenuPortal({
   const setDetailOpen = useUIStore((s) => s.setDetailOpen);
   const addToast = useUIStore((s) => s.addToast);
   const { toggleFavorite, togglePinned, remove } = useGames();
+  const { launch } = useLaunchGame();
 
   useEffect(() => {
     const el = menuRef.current;
@@ -205,13 +207,7 @@ function ContextMenuPortal({
     return () => window.removeEventListener("scroll", handleScroll, true);
   }, [onClose]);
 
-  const handlePlay = async () => {
-    try {
-      if (game.platform === "steam" && game.steam_app_id) await api.launchSteamGame(game.steam_app_id, game.id);
-      else if (game.platform === "epic" && game.epic_app_name) await api.launchEpicGame(game.epic_app_name, game.id);
-      else await api.launchGame(game.id);
-    } catch (err) { addToast(String(err), "error"); }
-  };
+  const handlePlay = () => { launch(game); };
 
   const handleOpenFolder = async () => {
     try { await api.openGameFolder(game.id); } catch (err) { addToast(String(err), "error"); }

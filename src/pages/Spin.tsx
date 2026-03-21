@@ -4,6 +4,7 @@ import { useGameStore } from "@/store/useGameStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useCover } from "@/hooks/useCover";
 import { api } from "@/lib/tauri";
+import { useLaunchGame } from "@/lib/useLaunchGame";
 import { cn, formatPlaytime } from "@/lib/utils";
 import type { Game } from "@/lib/types";
 import { SpinIcon, PlayIcon, SearchIcon, SteamIcon, EpicIcon, GogIcon, CustomGameIcon, HeartIcon, LibraryIcon, SparkleIcon, CloseIcon, CheckIcon } from "@/components/ui/Icons";
@@ -187,17 +188,11 @@ function WinnerCard({ game, onPlayAgain, onExclude }: {
   onPlayAgain: () => void;
   onExclude: () => void;
 }) {
-  const addToast = useUIStore((s) => s.addToast);
   const coverUrl = useCover(game);
   const [imgFailed, setImgFailed] = useState(false);
+  const { launch } = useLaunchGame();
 
-  const handlePlay = async () => {
-    try {
-      if (game.platform === "steam" && game.steam_app_id) await api.launchSteamGame(game.steam_app_id, game.id);
-      else if (game.platform === "epic" && game.epic_app_name) await api.launchEpicGame(game.epic_app_name, game.id);
-      else await api.launchGame(game.id);
-    } catch (err) { addToast(String(err), "error"); }
-  };
+  const handlePlay = () => { launch(game); };
 
   const platformLabel = game.platform === "steam" ? "Steam" : game.platform === "epic" ? "Epic" : game.platform === "gog" ? "GOG" : "Custom";
 

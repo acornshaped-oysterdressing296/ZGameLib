@@ -240,3 +240,4 @@ export interface ModLoaderStatus {
   mods_folder: string | null;
   mods: ModInfo[];
 }
+

@@ -40,8 +40,8 @@ interface UIStore {
   isBulkAdding: boolean;
   setBulkAdding: (v: boolean) => void;
 
-  confirmDialog: { open: boolean; title: string; onConfirm: () => void } | null;
-  openConfirm: (title: string, onConfirm: () => void) => void;
+  confirmDialog: { open: boolean; title: string; onConfirm: () => void; confirmLabel?: string } | null;
+  openConfirm: (title: string, onConfirm: () => void, confirmLabel?: string) => void;
   closeConfirm: () => void;
 
   customStatuses: StatusConfig[];
@@ -75,6 +75,9 @@ interface UIStore {
   setWhatsNewOpen: (v: boolean) => void;
   whatsNewVersion: string;
   setWhatsNewVersion: (v: string) => void;
+
+  activeGameId: string | null;
+  setActiveGameId: (id: string | null) => void;
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -102,8 +105,8 @@ export const useUIStore = create<UIStore>((set) => ({
   setBulkAdding: (v) => set({ isBulkAdding: v }),
 
   confirmDialog: null,
-  openConfirm: (title, onConfirm) =>
-    set({ confirmDialog: { open: true, title, onConfirm } }),
+  openConfirm: (title, onConfirm, confirmLabel) =>
+    set({ confirmDialog: { open: true, title, onConfirm, confirmLabel } }),
   closeConfirm: () => set({ confirmDialog: null }),
 
   customStatuses: DEFAULT_STATUSES,
@@ -142,4 +145,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setWhatsNewOpen: (v) => set({ whatsNewOpen: v }),
   whatsNewVersion: "",
   setWhatsNewVersion: (v) => set({ whatsNewVersion: v }),
+
+  activeGameId: null,
+  setActiveGameId: (id) => set({ activeGameId: id }),
 }));

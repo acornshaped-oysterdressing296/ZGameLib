@@ -8,6 +8,7 @@ import { useGames } from "@/hooks/useGames";
 import { useCover, setCoverCache, clearCoverCache } from "@/hooks/useCover";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/tauri";
+import { useLaunchGame } from "@/lib/useLaunchGame";
 import { cn, formatPlaytime, formatDate, COVER_PLACEHOLDER } from "@/lib/utils";
 import StarRating from "@/components/ui/StarRating";
 import GameNotes from "./GameNotes";
@@ -153,6 +154,8 @@ export default function GameDetail() {
   const { update, remove, toggleFavorite } = useGames();
   const openConfirm = useUIStore((s) => s.openConfirm);
   const addToast = useUIStore((s) => s.addToast);
+  const activeGameId = useUIStore((s) => s.activeGameId);
+  const { launch } = useLaunchGame();
 
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState("");
@@ -272,14 +275,11 @@ export default function GameDetail() {
     }
   };
 
-  const handlePlay = async () => {
-    try {
-      if (game.platform === "steam" && game.steam_app_id) await api.launchSteamGame(game.steam_app_id, game.id);
-      else if (game.platform === "epic" && game.epic_app_name) await api.launchEpicGame(game.epic_app_name, game.id);
-      else await api.launchGame(game.id);
+  const handlePlay = () => {
+    launch(game, () => {
       setGameStarted(true);
       setTimeout(() => setGameStarted(false), 3000);
-    } catch (e) { addToast(String(e), "error"); }
+    });
   };
 
   const loadSessions = async () => {
@@ -786,14 +786,23 @@ export default function GameDetail() {
               <div className="flex gap-2">
                 <motion.button
                   data-tour="play-btn"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handlePlay}
-                  className={cn("btn-primary flex-1 justify-center py-3 transition-all", gameStarted && "bg-green-600 hover:bg-green-500")}
-                  style={{ boxShadow: gameStarted ? "0 0 25px rgba(34,197,94,0.3)" : "0 0 25px rgb(var(--accent-500) /0.2)" }}
+                  whileHover={{ scale: activeGameId === game.id ? 1 : 1.02 }}
+                  whileTap={{ scale: activeGameId === game.id ? 1 : 0.98 }}
+                  onClick={activeGameId === game.id ? undefined : handlePlay}
+                  className={cn(
+                    "btn-primary flex-1 justify-center py-3 transition-all",
+                    activeGameId === game.id && "bg-green-600 hover:bg-green-600 cursor-default",
+                    gameStarted && activeGameId !== game.id && "bg-green-600 hover:bg-green-500",
+                  )}
+                  style={{ boxShadow: activeGameId === game.id ? "0 0 25px rgba(34,197,94,0.3)" : gameStarted ? "0 0 25px rgba(34,197,94,0.3)" : "0 0 25px rgb(var(--accent-500) /0.2)" }}
                 >
                   <AnimatePresence mode="wait" initial={false}>
-                    {gameStarted ? (
+                    {activeGameId === game.id ? (
+                      <motion.span key="playing" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex items-center gap-1.5">
+                        <span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75" /><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400" /></span>
+                        Playing
+                      </motion.span>
+                    ) : gameStarted ? (
                       <motion.span key="started" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex items-center gap-1.5">
                         <CheckIcon size={14} />
                         Game Started

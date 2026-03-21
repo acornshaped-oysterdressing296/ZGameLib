@@ -60,13 +60,19 @@ export default function ConfirmModal() {
                   onClick={() => { dialog.onConfirm(); closeConfirm(); }}
                   className="flex-1 justify-center flex items-center gap-2 font-medium px-4 py-2.5 rounded-xl text-sm transition-all duration-200 cursor-pointer"
                   style={{
-                    background: "linear-gradient(135deg, rgba(220,38,38,0.8), rgba(185,28,28,0.9))",
-                    border: "1px solid rgba(239,68,68,0.3)",
+                    background: dialog.confirmLabel
+                      ? "linear-gradient(135deg, rgba(234,179,8,0.8), rgba(161,98,7,0.9))"
+                      : "linear-gradient(135deg, rgba(220,38,38,0.8), rgba(185,28,28,0.9))",
+                    border: dialog.confirmLabel
+                      ? "1px solid rgba(234,179,8,0.3)"
+                      : "1px solid rgba(239,68,68,0.3)",
                     color: "white",
-                    boxShadow: "0 0 20px rgba(239,68,68,0.15)",
+                    boxShadow: dialog.confirmLabel
+                      ? "0 0 20px rgba(234,179,8,0.15)"
+                      : "0 0 20px rgba(239,68,68,0.15)",
                   }}
                 >
-                  Remove
+                  {dialog.confirmLabel ?? "Remove"}
                 </motion.button>
               </div>
             </div>

@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.2.0] — 2026-03-21
+
+### Added
+
+- **Game-already-running detection** — launching while another session is active shows a confirm dialog with "Stop & Launch" to switch games instantly
+- **Live "Playing" indicator** — play button shows a pulsing green "Playing" state while a game session is active
+- **Stop & Launch** — terminates the running game process (`TerminateProcess`) before launching the new one; all launch entry-points consolidated into a shared `useLaunchGame` hook
+
+### Fixed
+
+- **ZipSlip path traversal** — `install_bepinex` and `install_melonloader` now validate each ZIP entry path component, rejecting any `..` or rooted segments; `canonicalize` double-check against base directory
+- **Scan button broken** — `GameGrid` now calls `useScan()` at component level; the "Scan Steam / Epic / GOG" empty-state card correctly triggers the scan hook instead of a dead dynamic import
+- **Dual game state divergence** — `game-session-ended` listener in `AppBehavior` now calls `qc.invalidateQueries` rather than manually replacing store state; TanStack Query is the single source of truth
+- **Soft-delete UNIQUE constraint** — `steam_app_id` and `epic_app_name` UNIQUE column constraints replaced with partial unique indexes (`WHERE deleted_at IS NULL`); live migration rebuilds existing installs automatically
+- **IGDB token waste** — `fetch_igdb_metadata` now caches the OAuth access token in `IgdbTokenState` with a 60-second expiry buffer; subsequent lookups reuse the cached token instead of requesting a new one per call
+- **Unrestricted filesystem write** — `save_file` command validates the resolved canonical target path against an allowlist of safe directories (APPDATA, LOCALAPPDATA, Documents, Desktop, Downloads, OneDrive); writes outside these directories are rejected
+- **Missing transactions** — `reorder_games` and `batch_update_games` now wrap their multi-statement loops in a single SQLite transaction for atomicity and a ~10× throughput improvement
+- **Game tracking fallback** — tracking state no longer resets instantly when a Steam/Epic game has no install directory or exe path; fallback tracker keeps the session active until manually stopped
+
+---
+
 ## [1.0.0] — 2026-03-20
 
 ### Added
@@ -66,22 +87,6 @@
 - Default grid columns changed from 4 to **6** (both Rust default and frontend fallback)
 - Wrapped page added to sidebar navigation between Spin and Settings
 - Settings → About section: added "Take the Tour" and "What's New" buttons
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -247,10 +252,6 @@
 - **Rating buttons on game cards** moved above the game title (previously rendered below the title, partially obscured by the status badge)
 - **Spin wheel clock tick marks** removed from the static overlay SVG; the outer ring and pointer triangle are kept; the wheel looks cleaner with no decorative minute-hand lines
 - Version bumped to **0.7.0**
-
-
-
-
 
 
 

@@ -2,7 +2,7 @@ import { AnimatePresence, motion, Reorder } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { useFilteredGames } from "@/hooks/useGames";
+import { useFilteredGames, useScan } from "@/hooks/useGames";
 import { api } from "@/lib/tauri";
 import GameCard from "./GameCard";
 import GameListRow from "./GameListRow";
@@ -101,6 +101,7 @@ function Pagination({ page, totalPages, onPage }: { page: number; totalPages: nu
 
 export default function GameGrid({ isLoading = false }: { isLoading?: boolean }) {
   const games = useFilteredGames();
+  const { scan } = useScan();
   const allGamesRaw = useGameStore((s) => s.games);
   const viewMode = useGameStore((s) => s.viewMode);
   const sortKey = useGameStore((s) => s.sortKey);
@@ -184,7 +185,7 @@ export default function GameGrid({ isLoading = false }: { isLoading?: boolean })
           </div>
           <div className="grid grid-cols-3 gap-3 w-full max-w-md">
             {[
-              { label: "Scan Steam / Epic / GOG", desc: "Auto-detect installed games", onClick: () => import("@/hooks/useGames").then(m => m.useScan) },
+              { label: "Scan Steam / Epic / GOG", desc: "Auto-detect installed games", onClick: () => scan() },
               { label: "Add a game manually", desc: "Pick an exe or folder", onClick: () => setAddGameOpen(true) },
               { label: "Browse Steam library", desc: "Import owned games", onClick: () => setAddGameOpen(true) },
             ].map((card, i) => (

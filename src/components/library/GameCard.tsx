@@ -8,6 +8,7 @@ import { useUIStore } from "@/store/useUIStore";
 import { useGames } from "@/hooks/useGames";
 import { useCover } from "@/hooks/useCover";
 import { api } from "@/lib/tauri";
+import { useLaunchGame } from "@/lib/useLaunchGame";
 import GameContextMenu from "@/components/ui/GameContextMenu";
 import PlatformBadge from "@/components/ui/PlatformBadge";
 import { HeartIcon, PlayIcon, FolderIcon, StarIcon, FireIcon, SettingsIcon, AlertIcon, CheckIcon } from "@/components/ui/Icons";
@@ -17,6 +18,7 @@ function GameCard({ game }: { game: Game }) {
   const setDetailOpen = useUIStore((s) => s.setDetailOpen);
   const addToast = useUIStore((s) => s.addToast);
   const { toggleFavorite, update } = useGames();
+  const { launch } = useLaunchGame();
   const coverUrl = useCover(game);
   const [imgFailed, setImgFailed] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -34,19 +36,9 @@ function GameCard({ game }: { game: Game }) {
     toggleFavorite(game.id);
   };
 
-  const handlePlay = async (e: React.MouseEvent) => {
+  const handlePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      if (game.platform === "steam" && game.steam_app_id) {
-        await api.launchSteamGame(game.steam_app_id, game.id);
-      } else if (game.platform === "epic" && game.epic_app_name) {
-        await api.launchEpicGame(game.epic_app_name, game.id);
-      } else {
-        await api.launchGame(game.id);
-      }
-    } catch (err) {
-      addToast(String(err), "error");
-    }
+    launch(game);
   };
 
   const handleFolder = async (e: React.MouseEvent) => {

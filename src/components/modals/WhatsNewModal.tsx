@@ -9,6 +9,19 @@ interface ReleaseNote {
 }
 
 const RELEASE_NOTES: Record<string, ReleaseNote> = {
+  "1.2.0": {
+    headline: "Game tracking overhaul, security hardening, and targeted bug fixes.",
+    bullets: [
+      "Game-already-running detection — in-app confirm dialog with Stop & Launch to switch games instantly",
+      "Live \"Playing\" indicator on the play button while a game session is active",
+      "Stop & Launch terminates the running game process before launching the new one",
+      "ZipSlip path-traversal vulnerability patched in BepInEx/MelonLoader installer",
+      "IGDB OAuth tokens cached and reused — no redundant round-trips per lookup",
+      "Filesystem write command restricted to safe directories (AppData, Documents, Desktop)",
+      "Partial UNIQUE index migration fixes duplicate game blocking on soft-deleted records",
+      "Session-ended state sync uses TanStack Query invalidation — no more stale playtime",
+    ],
+  },
   "1.0.0": {
     headline: "The 1.0 milestone — polished, welcoming, and ready.",
     bullets: [

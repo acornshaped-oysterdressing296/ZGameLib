@@ -6,6 +6,7 @@ import type { Game } from "@/lib/types";
 import { useGameStore } from "@/store/useGameStore";
 import { useGames } from "@/hooks/useGames";
 import { api } from "@/lib/tauri";
+import { useLaunchGame } from "@/lib/useLaunchGame";
 import Badge from "@/components/ui/Badge";
 import PlatformBadge from "@/components/ui/PlatformBadge";
 import GameContextMenu from "@/components/ui/GameContextMenu";
@@ -17,6 +18,7 @@ export default function GameListRow({ game }: { game: Game }) {
   const addToast = useUIStore((s) => s.addToast);
   const customStatuses = useUIStore((s) => s.customStatuses);
   const { toggleFavorite } = useGames();
+  const { launch } = useLaunchGame();
   const coverUrl = useCover(game);
   const selectedIds = useGameStore((s) => s.selectedIds);
   const toggleSelected = useGameStore((s) => s.toggleSelected);
@@ -113,13 +115,7 @@ export default function GameListRow({ game }: { game: Game }) {
         </motion.button>
         <motion.button
           whileTap={{ scale: 0.85 }}
-          onClick={async (e) => {
-            e.stopPropagation();
-            try {
-              if (game.platform === "steam" && game.steam_app_id) await api.launchSteamGame(game.steam_app_id, game.id);
-              else await api.launchGame(game.id);
-            } catch (e: any) { addToast(e?.message ?? "Failed to launch game", "error"); }
-          }}
+          onClick={(e) => { e.stopPropagation(); launch(game); }}
           className="btn-icon w-7 h-7 hover:text-cyan-400"
         >
           <PlayIcon size={11} />

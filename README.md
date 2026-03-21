@@ -10,7 +10,7 @@ Track, organize, rate and launch every game you own — Steam, Epic, GOG, and cu
 <p>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-7c3aed?style=flat-square" alt="MIT License"/></a>
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D4?style=flat-square&logo=windows" alt="Windows"/>
-  <img src="https://img.shields.io/badge/Version-1.0.0-22c55e?style=flat-square" alt="v1.0.0"/>
+  <img src="https://img.shields.io/badge/Version-1.2.0-22c55e?style=flat-square" alt="v1.2.0"/>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Built%20with-Tauri%202-FFC131?style=flat-square" alt="Tauri 2"/></a>
   <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react" alt="React 18"/>
   <img src="https://img.shields.io/badge/Rust-backend-CE422B?style=flat-square&logo=rust" alt="Rust"/>
@@ -18,8 +18,8 @@ Track, organize, rate and launch every game you own — Steam, Epic, GOG, and cu
 
 <p>
   <a href="https://zsync.eu/zgamelib/"><strong>🌐 Website</strong></a> &nbsp;·&nbsp;
-  <a href="https://zsync.eu/zgamelib/app/ZGameLib_1.0.0_x64_en-US.msi"><strong>⬇ Download MSI</strong></a> &nbsp;·&nbsp;
-  <a href="https://zsync.eu/zgamelib/app/ZGameLib_1.0.0_x64-setup.exe"><strong>⬇ Download EXE</strong></a> &nbsp;·&nbsp;
+  <a href="https://zsync.eu/zgamelib/app/ZGameLib_1.2.0_x64_en-US.msi"><strong>⬇ Download MSI</strong></a> &nbsp;·&nbsp;
+  <a href="https://zsync.eu/zgamelib/app/ZGameLib_1.2.0_x64-setup.exe"><strong>⬇ Download EXE</strong></a> &nbsp;·&nbsp;
   <a href="https://github.com/TheHolyOneZ/ZGameLib"><strong>GitHub</strong></a>
 </p>
 
@@ -27,29 +27,31 @@ Track, organize, rate and launch every game you own — Steam, Epic, GOG, and cu
 
 ---
 
-## What's New in v1.0.0
+## What's New in v1.2.0
 
-The milestone release. v1.0.0 is focused on **Polish & Discovery** — making ZGameLib feel like a finished, welcoming product from the very first launch.
+v1.2.0 brings **game session management**, **security hardening**, and **8 targeted bug fixes**.
 
 | Feature | Description |
 |---------|-------------|
-| **Interactive Onboarding Tour** | Three-mode cinematic tour (Quick / Standard / Deep Dive) with animated spotlight overlay, live UI demonstrations, and a custom ending animation |
-| **Year in Review** | Annual gaming recap at `/wrapped` — total hours, most played, top rated, busiest month, platform split, 9 animated stat cards |
-| **Smart Play Recommendations** | "Play Next" strip on the library page — surfaces your best backlog picks using tag and genre matching against your highest-rated games |
-| **What's New Modal** | In-app release notes shown automatically on first launch after an update |
-| **Contextual Empty State** | Three action cards (Scan, Add, Browse Steam) replace the blank state once onboarding completes |
-| **New Keyboard Shortcuts** | `S` scan, `W` wrapped, `H` toggle hidden, `1`–`9`/`0` quick-rate, documented `Ctrl+Z` undo deletion |
-| **Default 6-Column Grid** | Out-of-the-box grid now shows 6 columns instead of 4 |
+| **Game-Already-Running Detection** | Launching while another session is active shows a confirm dialog with "Stop & Launch" to switch games instantly |
+| **Live "Playing" Indicator** | Play button shows a pulsing green "Playing" state while a game session is active |
+| **Stop & Launch** | Terminates the running game process (`TerminateProcess`) before launching the new one |
+| **ZipSlip Patch** | Path traversal vulnerability patched in BepInEx/MelonLoader installer |
+| **Filesystem Hardening** | `save_file` restricted to safe directories (AppData, Documents, Desktop) |
+| **IGDB Token Cache** | OAuth tokens cached with 60s expiry buffer — no redundant round-trips |
+| **Soft-Delete Fix** | Partial UNIQUE indexes prevent duplicate blocking on soft-deleted records |
+| **Transaction Safety** | `reorder_games` and `batch_update_games` wrapped in SQLite transactions |
+| **Game Tracking Fallback** | Steam/Epic games without install directory stay tracked instead of resetting instantly |
 
 ---
 
 ## Preview
 
-> Recorded on v0.7.0. v1.0.0 includes onboarding tour, Year in Review, smart recommendations, and many more improvements.
+> Recorded on v0.3.0. Latest version includes game session management, onboarding tour, Year in Review, smart recommendations, and many more improvements.
 
 <div align="center">
 
-[![ZGameLib Preview](https://img.youtube.com/vi/4L1U4SOJrQg/maxresdefault.jpg)](https://www.youtube.com/watch?v=4L1U4SOJrQg)
+[![ZGameLib Preview](https://img.youtube.com/vi/rlqUUqAPOxU/maxresdefault.jpg)](https://www.youtube.com/watch?v=rlqUUqAPOxU)
 
 </div>
 
@@ -59,8 +61,8 @@ The milestone release. v1.0.0 is focused on **Polish & Discovery** — making ZG
 
 | Installer | Format | Notes |
 |-----------|--------|-------|
-| [ZGameLib_1.0.0_x64_en-US.msi](https://zsync.eu/zgamelib/app/ZGameLib_1.0.0_x64_en-US.msi) | `.msi` | **Recommended** — Windows Installer |
-| [ZGameLib_1.0.0_x64-setup.exe](https://zsync.eu/zgamelib/app/ZGameLib_1.0.0_x64-setup.exe) | `.exe` | NSIS alternative installer |
+| [ZGameLib_1.2.0_x64_en-US.msi](https://zsync.eu/zgamelib/app/ZGameLib_1.2.0_x64_en-US.msi) | `.msi` | **Recommended** — Windows Installer |
+| [ZGameLib_1.2.0_x64-setup.exe](https://zsync.eu/zgamelib/app/ZGameLib_1.2.0_x64-setup.exe) | `.exe` | NSIS alternative installer |
 
 > **Windows SmartScreen:** On first launch you may see *"Windows protected your PC"* — click **More info → Run anyway**. This is expected for unsigned indie apps.
 
@@ -68,7 +70,7 @@ The milestone release. v1.0.0 is focused on **Polish & Discovery** — making ZG
 
 ## Table of Contents
 
-- [What's New in v1.0.0](#whats-new-in-v100)
+- [What's New in v1.2.0](#whats-new-in-v120)
 - [Features](#features)
   - [Onboarding Tour](#-interactive-onboarding-tour)
   - [Library & Scanning](#-library--scanning)
@@ -264,7 +266,9 @@ The signature 1.0 feature. On first launch, users pick a tour mode — ZGameLib 
 - Multi-process games (launcher stub → real exe) are handled with an adaptive grace window: 300 s for the initial launcher handoff, then 30 s once the real game is confirmed running
 - Records elapsed minutes and saves a session row when the game exits; fires a `game-session-ended` event to the frontend so playtime updates instantly without a manual refresh
 - Updates `last_played` timestamp on launch
-- Falls back to single-PID tracking when no install directory is resolvable
+- Falls back to timeout-based tracking when no install directory is resolvable — session stays active until manually stopped
+- **Game-already-running detection** — if you try to launch a game while another is tracked, an in-app confirm dialog offers "Stop & Launch" to kill the running game (`TerminateProcess`) and start the new one
+- **Live "Playing" indicator** — the play button shows a pulsing green "Playing" state while a game session is active
 - **Idle detection** — polls `GetForegroundWindow` every 30 s; if the game window loses focus for 5+ consecutive minutes, that idle period is excluded from the session total; brief alt-tabs are ignored; can be toggled off in Settings → Behavior
 - **Steam Playtime Sync** — enter your Steam API Key and SteamID64 in Settings → Integrations; sync only increases local values, never decreases
 - **Minimize on launch** — ZGameLib hides to tray with a 400 ms delay (for window focus handoff), then auto-restores when the game exits
@@ -1070,6 +1074,17 @@ npx tauri dev
 
 Rust source changes trigger a full backend recompile. Frontend changes hot-reload instantly.
 
+### Production Build
+
+```powershell
+.\build-release.ps1
+```
+
+Outputs installers to `src-tauri/target/release/bundle/`:
+- `msi/ZGameLib_1.2.0_x64_en-US.msi`
+- `nsis/ZGameLib_1.2.0_x64-setup.exe`
+
+---
 
 ## License
 
