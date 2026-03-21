@@ -1,7 +1,7 @@
 use tauri::State;
 use chrono::Utc;
 use uuid::Uuid;
-use crate::db::{DbState, queries};
+use crate::db::{DbState, IgdbTokenState, queries};
 use crate::models::{Game, Note, Session, CreateGamePayload, UpdateGamePayload, HltbData, WeeklyPlaytime, IgdbMetadata, LibraryGrowthEntry};
 
 #[tauri::command]
@@ -217,7 +217,7 @@ pub fn reorder_games(state: State<DbState>, ids: Vec<String>) -> Result<(), Stri
     let conn = state.0.lock().map_err(|e| e.to_string())?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     for (i, id) in ids.iter().enumerate() {
-        conn.execute(
+        tx.execute(
             "UPDATE games SET sort_order = ?1 WHERE id = ?2",
             rusqlite::params![i as i64, id],
         ).map_err(|e| e.to_string())?;
@@ -378,7 +378,7 @@ pub fn batch_update_games(
                 if !game.tags.contains(t) { game.tags.push(t.clone()); }
             }
         }
-        queries::update_game(&conn, &game).map_err(|e| e.to_string())?;
+        queries::update_game(&*tx, &game).map_err(|e| e.to_string())?;
     }
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
@@ -418,24 +418,12 @@ pub fn get_library_growth(state: State<DbState>) -> Result<Vec<LibraryGrowthEntr
     Ok(month_map.into_values().collect())
 }
 
-#[tauri::command]
-pub fn fetch_igdb_metadata(
-    state: State<DbState>,
-    game_id: String,
-    game_name: String,
-    client_id: String,
-    client_secret: String,
-) -> Result<Option<IgdbMetadata>, String> {
-    if client_id.trim().is_empty() || client_secret.trim().is_empty() {
-        return Err("IGDB client_id and client_secret are required".to_string());
-    }
-
-    let token_url = "https://id.twitch.tv/oauth2/token";
+fn fetch_fresh_igdb_token(client_id: &str, client_secret: &str, now_secs: u64) -> Result<(String, u64), String> {
     let token_body = format!(
         "client_id={}&client_secret={}&grant_type=client_credentials",
         client_id.trim(), client_secret.trim()
     );
-    let token_resp = ureq::post(token_url)
+    let token_resp = ureq::post("https://id.twitch.tv/oauth2/token")
         .set("Content-Type", "application/x-www-form-urlencoded")
         .timeout(std::time::Duration::from_secs(15))
         .send_string(&token_body)
@@ -447,6 +435,48 @@ pub fn fetch_igdb_metadata(
         .as_str()
         .ok_or("Failed to parse access token")?
         .to_string();
+    let expires_in = token_json["expires_in"].as_u64().unwrap_or(3600);
+    Ok((access_token, now_secs + expires_in))
+}
+
+#[tauri::command]
+pub fn fetch_igdb_metadata(
+    state: State<DbState>,
+    token_state: State<IgdbTokenState>,
+    game_id: String,
+    game_name: String,
+    client_id: String,
+    client_secret: String,
+) -> Result<Option<IgdbMetadata>, String> {
+    if client_id.trim().is_empty() || client_secret.trim().is_empty() {
+        return Err("IGDB client_id and client_secret are required".to_string());
+    }
+
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let access_token = {
+        let mut cached = token_state.0.lock().map_err(|e| e.to_string())?;
+        if let Some((ref token, expires_at)) = *cached {
+            if now_secs + 60 < expires_at {
+                token.clone()
+            } else {
+                drop(cached);
+                let token = fetch_fresh_igdb_token(&client_id, &client_secret, now_secs)?;
+                let mut c = token_state.0.lock().map_err(|e| e.to_string())?;
+                *c = Some((token.0.clone(), token.1));
+                token.0
+            }
+        } else {
+            drop(cached);
+            let token = fetch_fresh_igdb_token(&client_id, &client_secret, now_secs)?;
+            let mut c = token_state.0.lock().map_err(|e| e.to_string())?;
+            *c = Some((token.0.clone(), token.1));
+            token.0
+        }
+    };
 
     let query = format!(
         "fields name,genres.name,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,first_release_date,summary; search \"{}\"; limit 5;",

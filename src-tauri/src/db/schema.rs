@@ -17,8 +17,8 @@ pub fn create_tables(conn: &Connection) -> anyhow::Result<()> {
             playtime_mins INTEGER NOT NULL DEFAULT 0,
             last_played   TEXT,
             date_added    TEXT NOT NULL,
-            steam_app_id  TEXT UNIQUE,
-            epic_app_name TEXT UNIQUE,
+            steam_app_id  TEXT,
+            epic_app_name TEXT,
             tags          TEXT NOT NULL DEFAULT '[]',
             sort_order    INTEGER NOT NULL DEFAULT 0
         );
@@ -64,6 +64,8 @@ pub fn create_tables(conn: &Connection) -> anyhow::Result<()> {
     let _ = conn.execute("ALTER TABLE games ADD COLUMN igdb_skipped INTEGER NOT NULL DEFAULT 0", []);
     let _ = conn.execute("ALTER TABLE games ADD COLUMN not_installed INTEGER NOT NULL DEFAULT 0", []);
 
+    migrate_unique_to_partial(conn)?;
+
     conn.execute_batch(
         "
         CREATE TABLE IF NOT EXISTS collections (
@@ -83,6 +85,96 @@ pub fn create_tables(conn: &Connection) -> anyhow::Result<()> {
         ",
     )?;
     let _ = conn.execute("ALTER TABLE collections ADD COLUMN description TEXT", []);
+
+    Ok(())
+}
+
+fn migrate_unique_to_partial(conn: &Connection) -> anyhow::Result<()> {
+    let partial_exists: bool = conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='unique_steam_app_id'",
+        [],
+        |r| r.get::<_, i64>(0),
+    ).unwrap_or(0) > 0;
+
+    if partial_exists {
+        return Ok(());
+    }
+
+    let table_sql: String = conn.query_row(
+        "SELECT COALESCE(sql, '') FROM sqlite_master WHERE type='table' AND name='games'",
+        [],
+        |r| r.get::<_, String>(0),
+    ).unwrap_or_default();
+
+    if table_sql.to_uppercase().contains("UNIQUE") {
+        conn.execute_batch("PRAGMA foreign_keys = OFF")?;
+        conn.execute_batch(
+            "
+            BEGIN;
+            CREATE TABLE games_migration (
+                id            TEXT PRIMARY KEY,
+                name          TEXT NOT NULL,
+                platform      TEXT NOT NULL,
+                exe_path      TEXT,
+                install_dir   TEXT,
+                cover_path    TEXT,
+                description   TEXT,
+                rating        REAL,
+                status        TEXT NOT NULL DEFAULT 'none',
+                is_favorite   INTEGER NOT NULL DEFAULT 0,
+                playtime_mins INTEGER NOT NULL DEFAULT 0,
+                last_played   TEXT,
+                date_added    TEXT NOT NULL,
+                steam_app_id  TEXT,
+                epic_app_name TEXT,
+                tags          TEXT NOT NULL DEFAULT '[]',
+                sort_order    INTEGER NOT NULL DEFAULT 0,
+                deleted_at    TEXT,
+                is_pinned     INTEGER NOT NULL DEFAULT 0,
+                custom_fields TEXT NOT NULL DEFAULT '{}',
+                hltb_main_mins INTEGER,
+                hltb_extra_mins INTEGER,
+                genre         TEXT,
+                developer     TEXT,
+                publisher     TEXT,
+                release_year  INTEGER,
+                igdb_skipped  INTEGER NOT NULL DEFAULT 0,
+                not_installed INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT INTO games_migration SELECT
+                id, name, platform, exe_path, install_dir, cover_path, description,
+                rating, status, is_favorite, playtime_mins, last_played, date_added,
+                steam_app_id, epic_app_name, tags, sort_order,
+                deleted_at, is_pinned, custom_fields,
+                hltb_main_mins, hltb_extra_mins, genre, developer, publisher,
+                release_year, igdb_skipped, not_installed
+            FROM games;
+            DROP TABLE games;
+            ALTER TABLE games_migration RENAME TO games;
+            COMMIT;
+            ",
+        )?;
+        conn.execute_batch("PRAGMA foreign_keys = ON")?;
+        conn.execute_batch(
+            "
+            CREATE INDEX IF NOT EXISTS idx_games_platform    ON games(platform);
+            CREATE INDEX IF NOT EXISTS idx_games_is_fav      ON games(is_favorite);
+            CREATE INDEX IF NOT EXISTS idx_games_status      ON games(status);
+            CREATE INDEX IF NOT EXISTS idx_games_last_played ON games(last_played);
+            CREATE INDEX IF NOT EXISTS idx_notes_game_id     ON notes(game_id);
+            CREATE INDEX IF NOT EXISTS idx_sessions_game_id  ON sessions(game_id);
+            ",
+        )?;
+    }
+
+    conn.execute_batch(
+        "
+        CREATE UNIQUE INDEX IF NOT EXISTS unique_steam_app_id
+            ON games(steam_app_id) WHERE deleted_at IS NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS unique_epic_app_name
+            ON games(epic_app_name) WHERE deleted_at IS NULL;
+        ",
+    )?;
 
     Ok(())
 }

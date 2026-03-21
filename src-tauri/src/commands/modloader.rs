@@ -3,6 +3,18 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
+fn safe_extract_path(base: &std::path::Path, entry_name: &str) -> Option<PathBuf> {
+    let mut out = base.to_path_buf();
+    for component in Path::new(entry_name).components() {
+        match component {
+            std::path::Component::Normal(c) => out.push(c),
+            std::path::Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    if out.starts_with(base) { Some(out) } else { None }
+}
+
 fn p(install_dir: &str, sub: &str) -> PathBuf {
     Path::new(install_dir).join(sub)
 }
@@ -125,10 +137,16 @@ pub fn install_bepinex(app: AppHandle, install_dir: String) -> Result<(), String
     let bytes = download_bytes(url)?;
     emit_log(&app, "info", "Extracting to game directory...");
 
+    let canonical_base = fs::canonicalize(&install_dir)
+        .unwrap_or_else(|_| Path::new(&install_dir).to_path_buf());
+
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
-        let out = Path::new(&install_dir).join(file.name());
+        let out = match safe_extract_path(&canonical_base, file.name()) {
+            Some(p) => p,
+            None => continue,
+        };
         if file.name().ends_with('/') {
             fs::create_dir_all(&out).map_err(|e| e.to_string())?;
         } else {
@@ -182,10 +200,16 @@ pub fn install_melonloader(app: AppHandle, install_dir: String) -> Result<(), St
     let bytes = download_bytes(&asset_url)?;
 
     emit_log(&app, "info", "Extracting MelonLoader to game directory...");
+    let canonical_base_ml = fs::canonicalize(&install_dir)
+        .unwrap_or_else(|_| Path::new(&install_dir).to_path_buf());
+
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
-        let out = Path::new(&install_dir).join(file.name());
+        let out = match safe_extract_path(&canonical_base_ml, file.name()) {
+            Some(p) => p,
+            None => continue,
+        };
         if file.name().ends_with('/') {
             fs::create_dir_all(&out).map_err(|e| e.to_string())?;
         } else {

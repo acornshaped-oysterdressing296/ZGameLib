@@ -295,7 +295,43 @@ pub fn export_games_by_ids(state: State<DbState>, ids: Vec<String>) -> Result<St
 
 #[tauri::command]
 pub fn save_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, content).map_err(|e| e.to_string())
+    let target = std::path::Path::new(&path);
+    let parent = target.parent().ok_or("Invalid path")?;
+    if !parent.exists() {
+        return Err("Parent directory does not exist".to_string());
+    }
+    let canonical_parent = parent.canonicalize().map_err(|e| e.to_string())?;
+    let file_name = target.file_name().ok_or("Invalid path: no file name")?;
+    let canonical_target = canonical_parent.join(file_name);
+
+    let allowed = allowed_write_dirs();
+    let allowed_canonical: Vec<_> = allowed.iter()
+        .filter_map(|d| d.canonicalize().ok())
+        .collect();
+
+    if !allowed_canonical.iter().any(|base| canonical_target.starts_with(base)) {
+        return Err("Write to this location is not permitted".to_string());
+    }
+
+    std::fs::write(&canonical_target, content).map_err(|e| e.to_string())
+}
+
+fn allowed_write_dirs() -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        dirs.push(std::path::PathBuf::from(appdata));
+    }
+    if let Some(localappdata) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(std::path::PathBuf::from(localappdata));
+    }
+    if let Some(profile) = std::env::var_os("USERPROFILE") {
+        let home = std::path::PathBuf::from(profile);
+        dirs.push(home.join("Documents"));
+        dirs.push(home.join("Desktop"));
+        dirs.push(home.join("Downloads"));
+        dirs.push(home.join("OneDrive"));
+    }
+    dirs
 }
 
 #[tauri::command]

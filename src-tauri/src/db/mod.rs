@@ -6,6 +6,14 @@ use std::sync::{Arc, Mutex};
 
 pub struct DbState(pub Arc<Mutex<Connection>>);
 
+pub struct IgdbTokenState(pub Mutex<Option<(String, u64)>>);
+
+impl IgdbTokenState {
+    pub fn new() -> Self {
+        IgdbTokenState(Mutex::new(None))
+    }
+}
+
 pub fn init_db() -> anyhow::Result<Connection> {
     let exe_dir = std::env::current_exe()
         .ok()

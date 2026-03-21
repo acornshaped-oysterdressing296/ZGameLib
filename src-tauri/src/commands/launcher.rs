@@ -2,13 +2,34 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use chrono::Utc;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::db::{DbState, queries};
 
-pub struct ActivePids(pub Arc<Mutex<HashSet<u32>>>);
+#[cfg(windows)]
+fn show_native_alert(title: &str, message: &str) {
+    let t: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+    let m: Vec<u16> = message.encode_utf16().chain(std::iter::once(0)).collect();
+    std::thread::spawn(move || {
+        extern "system" {
+            fn MessageBoxW(hwnd: isize, text: *const u16, caption: *const u16, utype: u32) -> i32;
+        }
+        unsafe { MessageBoxW(0, m.as_ptr(), t.as_ptr(), 0x30); }
+    });
+}
+
+pub struct ActivePids {
+    pub pids: Arc<Mutex<HashSet<u32>>>,
+    pub game_active: Arc<AtomicBool>,
+    pub running_game_name: Arc<Mutex<String>>,
+}
 
 impl ActivePids {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(HashSet::new())))
+        Self {
+            pids: Arc::new(Mutex::new(HashSet::new())),
+            game_active: Arc::new(AtomicBool::new(false)),
+            running_game_name: Arc::new(Mutex::new(String::new())),
+        }
     }
 }
 
@@ -183,6 +204,29 @@ fn find_steam_game_dir(app_id: &str) -> Option<String> {
     None
 }
 
+#[cfg(windows)]
+fn track_by_timeout(
+    app: AppHandle,
+    game_id: String,
+    started_at: String,
+) {
+    let game_start = std::time::Instant::now();
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(5));
+        let still_active = {
+            let ap = app.state::<ActivePids>();
+            ap.game_active.load(Ordering::SeqCst)
+        };
+        if !still_active {
+            return;
+        }
+        if game_start.elapsed().as_secs() > 86400 {
+            break;
+        }
+    }
+    finish_session(&app, &game_id, &started_at, game_start.elapsed().as_secs());
+}
+
 fn finish_session(app: &AppHandle, game_id: &str, started_at: &str, elapsed_secs: u64) {
     let elapsed_mins = (elapsed_secs / 60) as i64;
     let now = Utc::now().to_rfc3339();
@@ -210,6 +254,11 @@ fn finish_session(app: &AppHandle, game_id: &str, started_at: &str, elapsed_secs
                 );
             }
         }
+    }
+    {
+        let ap = app.state::<ActivePids>();
+        ap.game_active.store(false, Ordering::SeqCst);
+        let _ = ap.running_game_name.lock().map(|mut name| name.clear());
     }
     let _ = app.emit("game-session-ended", game_id);
     if let Some(win) = app.get_webview_window("main") {
@@ -256,6 +305,10 @@ fn track_by_directory(
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
+    let mut game_pid: Option<u32> = hint_lower.as_ref()
+        .and_then(|h| find_pid_by_exe_name(h))
+        .or_else(|| find_pids_in_directory(&install_dir).into_iter().next());
+
     let game_start = std::time::Instant::now();
     let mut total_idle_secs: u64 = 0;
     let mut idle_run_secs: u64 = 0;
@@ -270,13 +323,34 @@ fn track_by_directory(
             break;
         }
 
-        let dir_hit = !find_pids_in_directory(&install_dir).is_empty();
-        let hint_hit = hint_lower.as_ref().map(|h| find_pid_by_exe_name(h).is_some()).unwrap_or(false);
-        let game_running = dir_hit || hint_hit;
+        let game_running = if let Some(pid) = game_pid {
+            if is_pid_running(pid) {
+                true
+            } else {
+                let new_pid = hint_lower.as_ref().and_then(|h| find_pid_by_exe_name(h));
+                if let Some(np) = new_pid {
+                    game_pid = Some(np);
+                    true
+                } else {
+                    false
+                }
+            }
+        } else {
+            let dir_hit = !find_pids_in_directory(&install_dir).is_empty();
+            let hint_hit = hint_lower.as_ref().map(|h| find_pid_by_exe_name(h).is_some()).unwrap_or(false);
+            dir_hit || hint_hit
+        };
 
         if !game_running {
+            if empty_ticks == 0 {
+    
+            }
             empty_ticks += 1;
-            let grace_ticks: u32 = if real_game_confirmed { 6 } else { 60 };
+            let grace_ticks: u32 = if game_pid.is_some() {
+                if real_game_confirmed { 6 } else { 12 }
+            } else {
+                if real_game_confirmed { 6 } else { 60 }
+            };
             if empty_ticks >= grace_ticks {
                 break;
             }
@@ -294,16 +368,19 @@ fn track_by_directory(
 
         iter_count += 1;
         if iter_count % 6 == 0 {
-            let fg_by_dir = is_game_foreground(&install_dir);
-            let fg_by_hint = if !fg_by_dir {
-                hint_lower.as_ref().and_then(|h| {
-                    let pid = find_pid_by_exe_name(h)?;
-                    Some(get_foreground_pid() == Some(pid))
-                }).unwrap_or(false)
+            let fg = if let Some(pid) = game_pid {
+                get_foreground_pid() == Some(pid)
             } else {
-                false
+                let fg_by_dir = is_game_foreground(&install_dir);
+                let fg_by_hint = if !fg_by_dir {
+                    hint_lower.as_ref().and_then(|h| {
+                        let pid = find_pid_by_exe_name(h)?;
+                        Some(get_foreground_pid() == Some(pid))
+                    }).unwrap_or(false)
+                } else { false };
+                fg_by_dir || fg_by_hint
             };
-            if exclude_idle && !fg_by_dir && !fg_by_hint {
+            if exclude_idle && !fg {
                 idle_run_secs += 30;
             } else {
                 if idle_run_secs >= 300 {
@@ -350,6 +427,7 @@ fn track_by_pid(
             break;
         }
         if !is_pid_running(pid) {
+
             break;
         }
         iter_count += 1;
@@ -380,7 +458,7 @@ pub fn launch_game(
     active_pids: State<ActivePids>,
     id: String,
 ) -> Result<(), String> {
-    let (exe_path, install_dir, minimize, exclude_idle) = {
+    let (exe_path, install_dir, game_name, minimize, exclude_idle) = {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
         let game = queries::get_game_by_id(&conn, &id)
             .map_err(|e| e.to_string())?
@@ -397,8 +475,21 @@ pub fn launch_game(
             .map(|v| v == "true").unwrap_or(false);
         let idle = queries::get_setting(&conn, "exclude_idle_time")
             .map(|v| v != "false").unwrap_or(true);
-        (exe, dir, min, idle)
+        (exe, dir, game.name.clone(), min, idle)
     };
+
+    if active_pids.game_active.load(Ordering::SeqCst) {
+        let running_name = {
+            let ap = app.state::<ActivePids>();
+            ap.running_game_name.lock().ok()
+                .map(|n| if n.is_empty() { "another game".to_string() } else { n.clone() })
+                .unwrap_or_else(|| "another game".to_string())
+        };
+        let _ = app.emit("game-already-running", &running_name);
+        #[cfg(windows)]
+        show_native_alert("ZGameLib", &format!("\"{}\" is already being tracked.\nClose it first or use Stop Tracking.", running_name));
+        return Err(format!("GAME_ALREADY_RUNNING:{}", running_name));
+    }
 
     let child = std::process::Command::new(&exe_path)
         .spawn()
@@ -424,10 +515,15 @@ pub fn launch_game(
         });
     }
 
+    active_pids.game_active.store(true, Ordering::SeqCst);
+    if let Ok(mut name) = active_pids.running_game_name.lock() {
+        *name = game_name.clone();
+    }
+
     let app_clone = app.clone();
     let game_id = id.clone();
     let started_at = now.clone();
-    let pids = active_pids.0.clone();
+    let pids = active_pids.pids.clone();
 
     #[cfg(windows)]
     {
@@ -443,6 +539,8 @@ pub fn launch_game(
             }
         });
     }
+
+
 
     #[cfg(not(windows))]
     {
@@ -476,7 +574,7 @@ pub fn launch_steam_game(
     app_id: String,
     game_id: String,
 ) -> Result<(), String> {
-    let (exe_path, install_dir, minimize, exclude_idle, not_installed) = {
+    let (exe_path, install_dir, game_name, minimize, exclude_idle, not_installed) = {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
         let game = queries::get_game_by_id(&conn, &game_id).ok().flatten();
         let exe = game.as_ref().and_then(|g| g.exe_path.clone());
@@ -486,18 +584,32 @@ pub fn launch_steam_game(
             if parent.components().count() <= 1 { return None; }
             Some(parent.to_string_lossy().to_string())
         });
+        let name = game.as_ref().map(|g| g.name.clone()).unwrap_or_default();
         let uninstalled = game.map(|g| g.not_installed).unwrap_or(false);
         let min = queries::get_setting(&conn, "minimize_on_launch")
             .map(|v| v == "true").unwrap_or(false);
         let idle = queries::get_setting(&conn, "exclude_idle_time")
             .map(|v| v != "false").unwrap_or(true);
-        (exe, dir, min, idle, uninstalled)
+        (exe, dir, name, min, idle, uninstalled)
     };
 
     if not_installed {
         open::that(format!("steam://install/{}", app_id))
             .map_err(|e| format!("Failed to open Steam install dialog: {}", e))?;
         return Ok(());
+    }
+
+    if active_pids.game_active.load(Ordering::SeqCst) {
+        let running_name = {
+            let ap = app.state::<ActivePids>();
+            ap.running_game_name.lock().ok()
+                .map(|n| if n.is_empty() { "another game".to_string() } else { n.clone() })
+                .unwrap_or_else(|| "another game".to_string())
+        };
+        let _ = app.emit("game-already-running", &running_name);
+        #[cfg(windows)]
+        show_native_alert("ZGameLib", &format!("\"{}\" is already being tracked.\nClose it first or use Stop Tracking.", running_name));
+        return Err(format!("GAME_ALREADY_RUNNING:{}", running_name));
     }
 
     open::that(format!("steam://run/{}", app_id))
@@ -522,9 +634,14 @@ pub fn launch_steam_game(
         });
     }
 
+    active_pids.game_active.store(true, Ordering::SeqCst);
+    if let Ok(mut name) = active_pids.running_game_name.lock() {
+        *name = game_name.clone();
+    }
+
     let app_clone = app.clone();
     let gid = game_id.clone();
-    let pids = active_pids.0.clone();
+    let pids = active_pids.pids.clone();
     let started_at = now.clone();
     let app_id_clone = app_id.clone();
 
@@ -542,23 +659,28 @@ pub fn launch_steam_game(
                     .file_name()
                     .map(|n| n.to_string_lossy().to_lowercase())
                     .unwrap_or_default();
-                if exe_name.is_empty() {
-                    return;
-                }
-                let mut pid: Option<u32> = None;
-                for _ in 0..180 {
-                    if let Some(p) = find_pid_by_exe_name(&exe_name) {
-                        pid = Some(p);
-                        break;
+                if !exe_name.is_empty() {
+                    let mut pid: Option<u32> = None;
+                    for _ in 0..180 {
+                        if let Some(p) = find_pid_by_exe_name(&exe_name) {
+                            pid = Some(p);
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_secs(1));
                     }
-                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    if let Some(p) = pid {
+                        track_by_pid(app_clone, gid, started_at, p, pids, exclude_idle);
+                        return;
+                    }
                 }
-                if let Some(p) = pid {
-                    track_by_pid(app_clone, gid, started_at, p, pids, exclude_idle);
-                }
+                track_by_timeout(app_clone, gid, started_at);
+            } else {
+                track_by_timeout(app_clone, gid, started_at);
             }
         }
     });
+
+
 
     Ok(())
 }
@@ -571,7 +693,7 @@ pub fn launch_epic_game(
     app_name: String,
     game_id: String,
 ) -> Result<(), String> {
-    let (exe_path, install_dir, minimize, exclude_idle) = {
+    let (exe_path, install_dir, game_name, minimize, exclude_idle) = {
         let conn = state.0.lock().map_err(|e| e.to_string())?;
         let game = queries::get_game_by_id(&conn, &game_id).ok().flatten();
         let exe = game.as_ref().and_then(|g| g.exe_path.clone());
@@ -581,12 +703,26 @@ pub fn launch_epic_game(
             if parent.components().count() <= 1 { return None; }
             Some(parent.to_string_lossy().to_string())
         });
+        let name = game.as_ref().map(|g| g.name.clone()).unwrap_or_default();
         let min = queries::get_setting(&conn, "minimize_on_launch")
             .map(|v| v == "true").unwrap_or(false);
         let idle = queries::get_setting(&conn, "exclude_idle_time")
             .map(|v| v != "false").unwrap_or(true);
-        (exe, dir, min, idle)
+        (exe, dir, name, min, idle)
     };
+
+    if active_pids.game_active.load(Ordering::SeqCst) {
+        let running_name = {
+            let ap = app.state::<ActivePids>();
+            ap.running_game_name.lock().ok()
+                .map(|n| if n.is_empty() { "another game".to_string() } else { n.clone() })
+                .unwrap_or_else(|| "another game".to_string())
+        };
+        let _ = app.emit("game-already-running", &running_name);
+        #[cfg(windows)]
+        show_native_alert("ZGameLib", &format!("\"{}\" is already being tracked.\nClose it first or use Stop Tracking.", running_name));
+        return Err(format!("GAME_ALREADY_RUNNING:{}", running_name));
+    }
 
     let uri = format!(
         "com.epicgames.launcher://apps/{}?action=launch&silent=true",
@@ -613,9 +749,14 @@ pub fn launch_epic_game(
         });
     }
 
+    active_pids.game_active.store(true, Ordering::SeqCst);
+    if let Ok(mut name) = active_pids.running_game_name.lock() {
+        *name = game_name.clone();
+    }
+
     let app_clone = app.clone();
     let gid = game_id.clone();
-    let pids = active_pids.0.clone();
+    let pids = active_pids.pids.clone();
     let started_at = now.clone();
 
     std::thread::spawn(move || {
@@ -631,23 +772,28 @@ pub fn launch_epic_game(
                     .file_name()
                     .map(|n| n.to_string_lossy().to_lowercase())
                     .unwrap_or_default();
-                if exe_name.is_empty() {
-                    return;
-                }
-                let mut pid: Option<u32> = None;
-                for _ in 0..180 {
-                    if let Some(p) = find_pid_by_exe_name(&exe_name) {
-                        pid = Some(p);
-                        break;
+                if !exe_name.is_empty() {
+                    let mut pid: Option<u32> = None;
+                    for _ in 0..180 {
+                        if let Some(p) = find_pid_by_exe_name(&exe_name) {
+                            pid = Some(p);
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_secs(1));
                     }
-                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    if let Some(p) = pid {
+                        track_by_pid(app_clone, gid, started_at, p, pids, exclude_idle);
+                        return;
+                    }
                 }
-                if let Some(p) = pid {
-                    track_by_pid(app_clone, gid, started_at, p, pids, exclude_idle);
-                }
+                track_by_timeout(app_clone, gid, started_at);
+            } else {
+                track_by_timeout(app_clone, gid, started_at);
             }
         }
     });
+
+
 
     Ok(())
 }
@@ -670,4 +816,58 @@ pub fn open_game_folder(state: State<DbState>, id: String) -> Result<(), String>
 
     open::that(&folder).map_err(|e: std::io::Error| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn stop_tracking(
+    app: AppHandle,
+    active_pids: State<ActivePids>,
+) -> Result<(), String> {
+    active_pids.game_active.store(false, Ordering::SeqCst);
+    if let Ok(mut pids) = active_pids.pids.lock() {
+        pids.clear();
+    }
+    if let Ok(mut name) = active_pids.running_game_name.lock() {
+        name.clear();
+    }
+    let _ = app.emit("game-session-ended", "");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn stop_game(
+    app: AppHandle,
+    active_pids: State<ActivePids>,
+) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        let pids_to_kill: Vec<u32> = {
+            let lock = active_pids.pids.lock().map_err(|e| e.to_string())?;
+            lock.iter().copied().collect()
+        };
+        for pid in &pids_to_kill {
+            kill_process(*pid);
+        }
+    }
+    active_pids.game_active.store(false, Ordering::SeqCst);
+    if let Ok(mut pids) = active_pids.pids.lock() {
+        pids.clear();
+    }
+    if let Ok(mut name) = active_pids.running_game_name.lock() {
+        name.clear();
+    }
+    let _ = app.emit("game-session-ended", "");
+    Ok(())
+}
+
+#[cfg(windows)]
+fn kill_process(pid: u32) {
+    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+    use windows::Win32::Foundation::CloseHandle;
+    unsafe {
+        if let Ok(handle) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+            let _ = TerminateProcess(handle, 1);
+            let _ = CloseHandle(handle);
+        }
+    }
 }

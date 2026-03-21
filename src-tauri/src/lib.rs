@@ -2,7 +2,7 @@ mod models;
 mod db;
 mod commands;
 
-use db::{DbState, init_db, queries};
+use db::{DbState, IgdbTokenState, init_db, queries};
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use commands::{games, scanner, launcher, settings, modloader, collections, logger};
@@ -22,7 +22,9 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+
         .manage(DbState(Arc::new(Mutex::new(conn))))
+        .manage(IgdbTokenState::new())
         .manage(launcher::ActivePids::new())
         .setup(|app| {
             let show_item = MenuItem::with_id(app, "show", "Show ZGameLib", true, None::<&str>)?;
@@ -167,6 +169,9 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
                 let db = app.state::<DbState>();
@@ -246,6 +251,8 @@ pub fn run() {
             launcher::launch_steam_game,
             launcher::launch_epic_game,
             launcher::open_game_folder,
+            launcher::stop_tracking,
+            launcher::stop_game,
             settings::get_settings,
             settings::save_settings,
             settings::export_library,
